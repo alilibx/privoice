@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** On-device record → transcribe → save works end-to-end on a real Android phone. STT is proven (Parakeet-TDT v3 INT8, RTF 0.44 on a low-end device). Next: on-device summary/minutes + chat.
+**Now:** Record → transcribe → save works on a real phone (STT proven, RTF 0.44). Building the AI layer: on-device LLM (fllama) **builds on Android** (`libfllama.so` bundled); `ai` package with summarize/action-items/chat + map-reduce written; LLM device spike (Llama 3.2 1B) in progress. Then smart-actions UI + animations.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -16,7 +16,7 @@
 | S0 | Toolchain bootstrap + melos monorepo | ✅ | Flutter 3.44.5, JDK17, Android SDK 36 |
 | S1 | On-device STT spike | ✅ 🧪 | **GO** — real device (Redmi 15C), RTF 0.44, perfect on clean sample |
 | S2 | Record → Transcribe UI + persistence | ✅ | Off-thread STT, SQLite, calm/trustworthy theme. Merged to main |
-| S3 | On-device LLM: summary / minutes (map-reduce) | ⬜ | Next. fllama + Llama 3.2 3B / Gemma 2 2B. Also unblocks chat |
+| S3 | On-device LLM: summary / minutes (map-reduce) | 🔨 🧪 | **Spike GO** — Llama 3.2 1B Q4 via fllama summarized a transcript into clean minutes in 6.1s (emulator). Building smart-actions UI |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
 | S5 | In-app model download + device tiering | ⬜ | Makes app self-sufficient (no adb push) |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
