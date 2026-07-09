@@ -21,6 +21,67 @@ class _SpikeScreenState extends State<SpikeScreen> {
   final AppAudioRecorder _recorder = AppAudioRecorder();
   final SherpaSttEngine _stt = SherpaSttEngine();
 
+  @override
+  void initState() {
+    super.initState();
+    _maybeSelfTest();
+  }
+
+  /// Headless device proof: if a `.selftest` sentinel exists in external
+  /// storage AND the model + sample WAV are present, auto-transcribe on launch
+  /// and log the result. Lets us verify the native pipeline via logcat without
+  /// mic input. No sentinel → normal app behaviour.
+  Future<void> _maybeSelfTest() async {
+    try {
+      final ext = await getExternalStorageDirectory();
+      if (ext == null) return;
+      // Flat layout in the app-owned files/ root: adb-pushed files here are
+      // readable by the app, whereas adb-created nested subdirs are not (a FUSE
+      // scoped-storage quirk that does not occur with the real download flow).
+      final base = ext.path;
+      final sentinel = File(p.join(base, '.selftest'));
+      final encoder = p.join(base, 'encoder.int8.onnx');
+      final wav = p.join(base, 'en.wav');
+      // ignore: avoid_print
+      print('ITEST_DIAG base=$base sentinel=${sentinel.existsSync()} '
+          'encoder=${File(encoder).existsSync()} wav=${File(wav).existsSync()}');
+      if (!sentinel.existsSync() ||
+          !File(encoder).existsSync() ||
+          !File(wav).existsSync()) {
+        return;
+      }
+      setState(() {
+        _busy = true;
+        _status = 'Self-test…';
+      });
+      final engine = SherpaSttEngine();
+      await engine.init(SttModelPaths(
+        encoder: encoder,
+        decoder: p.join(base, 'decoder.int8.onnx'),
+        joiner: p.join(base, 'joiner.int8.onnx'),
+        tokens: p.join(base, 'tokens.txt'),
+      ));
+      final sw = Stopwatch()..start();
+      final t = await engine.transcribe(wav);
+      sw.stop();
+      final rtf = sw.elapsedMilliseconds / t.audioDuration.inMilliseconds;
+      // ignore: avoid_print
+      print('ITEST_STT rtf=${rtf.toStringAsFixed(2)} '
+          'audioMs=${t.audioDuration.inMilliseconds} '
+          'transcribeMs=${sw.elapsedMilliseconds} text="${t.fullText}"');
+      await engine.dispose();
+      setState(() {
+        _busy = false;
+        _status = 'Self-test done';
+        _transcript = t.fullText;
+      });
+    } catch (e) {
+      // ignore: avoid_print
+      print('ITEST_STT error=$e');
+      setState(() => _busy = false);
+    }
+  }
+
   bool _recording = false;
   bool _busy = false;
   bool _initialized = false;
@@ -94,9 +155,11 @@ class _SpikeScreenState extends State<SpikeScreen> {
         _busy = false;
       });
 
-      // Also emit for `flutter logs` capture in the benchmark report.
+      // Also emit for `flutter logs` / logcat capture in the benchmark report.
       // ignore: avoid_print
       print('SPIKE_BENCH ${bench.describe()} model=${modelBytes}B');
+      // ignore: avoid_print
+      print('ITEST_STT text="${t.fullText}"');
     } catch (e) {
       setState(() {
         _status = 'Error: $e';

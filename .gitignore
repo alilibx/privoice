@@ -22,6 +22,8 @@ key.properties
 **/models/*.onnx
 **/models/*.bin
 **/models/*.gguf
+.cache/
+*.tar.bz2
 
 # Recorded audio
 *.wav

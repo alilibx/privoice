@@ -54,7 +54,9 @@ privoice/
 │   ├── core/              # shared types, drift (SQLite) storage, result/error types, utils
 │   ├── audio/             # recording → 16kHz mono WAV; file management
 │   ├── stt/               # sherpa-onnx wrapper: transcribe(file) -> Transcript (+ diarization later)
-│   ├── llm/               # fllama wrapper: summarize/minutes, incl. map-reduce chunker
+│   ├── ai/                # AiEngine interface + on-device (fllama) & online (OpenRouter) impls:
+│   │                      #   summarize/minutes (map-reduce) AND chat completions
+│   ├── documents/         # parse PDF / .docx / .md·txt -> text + chunks for AI context
 │   ├── models/            # model registry + (later) device tiering + download manager
 │   └── export/            # Transcript/Minutes -> PDF and .docx
 ├── docs/
@@ -135,3 +137,32 @@ Online/BYO tier (OpenRouter + online STT), private GPU infra (self-hosted Whispe
 | `sherpa-onnx` / `fllama` Dart binding rough edges on Android | Lean on the `local-whisper` reference app's wiring; isolate all binding code in `stt`/`llm` packages behind clean interfaces. |
 | Toolchain not installed (confirmed) | S0 bootstrap is an explicit first step, not an assumption. |
 | Model files bloat app binary | Models are downloaded/placed on first launch, not bundled in the APK. |
+
+---
+
+## 9. Scope expansion — 2026-07-09 (Documents + Chat)
+
+Added after brainstorming; these extend the **AI stage** and do NOT affect S0–S1. They become their own slices/plans after the STT + summary core works.
+
+### 9.1 Decisions
+| Topic | Choice |
+|---|---|
+| Side chat scope | **General assistant** that can *also* reference the current meeting (transcript + minutes) and any attached documents. |
+| Document formats | **PDF, Word (.docx), plain text / Markdown.** |
+| AI engine | **Tier-selectable:** on-device (fllama) by default (privacy-first), opt-in online (OpenRouter, BYO key) for higher quality. |
+
+### 9.2 New/changed packages
+- **`ai`** (supersedes the planned `llm`): an `AiEngine` interface with two implementations —
+  `OnDeviceAiEngine` (fllama) and `OnlineAiEngine` (OpenRouter). It serves three call types behind one interface: `summarize()` (map-reduce minutes), `chat(messages, context)`, and shared completion plumbing. The active engine is chosen by the user's privacy tier.
+- **`documents`**: parse **PDF / .docx / .md·txt → plain text**, then chunk for context. Public shape: `DocumentParser.parse(path) -> ParsedDocument { text, chunks[] }`. Candidate libs: a Dart PDF text extractor, a `.docx` (OOXML) reader, trivial md/txt. Attached docs are stored per-meeting in `core` (SQLite + files).
+
+### 9.3 Context assembly (how chat/summary use documents)
+Because on-device models have small context windows, chat and summary assemble context by **retrieval over chunks** (transcript segments + document chunks), not by stuffing everything in. MVP retrieval can be simple (recency + keyword/embedding match); this reuses the same map-reduce chunking discipline as the summary stage.
+
+### 9.4 New build slices (sequenced after the STT→summary→export core)
+- **S6 — AiEngine abstraction + on-device chat:** `ai` package, general chat panel (side sheet) over the on-device model, grounded optionally in the current meeting.
+- **S7 — Document parsing:** `documents` package (PDF/.docx/.md), attach-to-meeting UI, parsed text feeding summary + chat context.
+- **S8 — Online tier for AI:** `OnlineAiEngine` (OpenRouter, BYO key), tier switch in settings, curated model list (server-side) — overlaps the plan's Phase-3 online tier.
+
+### 9.5 Privacy note
+The online AI tier sends transcript/chat/document text to a third-party API. It must be **off by default**, clearly labelled, and gated behind explicit user opt-in per the privacy-tier model — consistent with §3 of the project plan.
