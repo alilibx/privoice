@@ -11,6 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  privoice_core:
+    path: ../../packages/core
   privoice_audio:
     path: ../../packages/audio
   privoice_stt:
