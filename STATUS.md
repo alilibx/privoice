@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** On-device record → transcribe → save works end-to-end on a real Android phone. STT is proven (Parakeet-TDT v3 INT8, RTF 0.44 on a low-end device). Next: on-device summary/minutes + chat.
+**Now:** Record → transcribe → save works on a real phone (STT proven, RTF 0.44). On-device LLM proven (Llama 3.2 1B via fllama → clean minutes in 6.1s). Smart-actions UI (Summarize / Action items / Ask) + animations built. Testing strategy defined ([TESTING.md](TESTING.md)) — real-device matrix + ML-quality harness planned.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -16,7 +16,8 @@
 | S0 | Toolchain bootstrap + melos monorepo | ✅ | Flutter 3.44.5, JDK17, Android SDK 36 |
 | S1 | On-device STT spike | ✅ 🧪 | **GO** — real device (Redmi 15C), RTF 0.44, perfect on clean sample |
 | S2 | Record → Transcribe UI + persistence | ✅ | Off-thread STT, SQLite, calm/trustworthy theme. Merged to main |
-| S3 | On-device LLM: summary / minutes (map-reduce) | ⬜ | Next. fllama + Llama 3.2 3B / Gemma 2 2B. Also unblocks chat |
+| S3 | On-device LLM: summary / minutes (map-reduce) | ✅ 🧪 | Works on-device (Llama 3.2 1B via fllama). Smart-actions UI shipped. 3B quality tier + quality eval pending (T5) |
+| S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
 | S5 | In-app model download + device tiering | ⬜ | Makes app self-sufficient (no adb push) |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
@@ -32,19 +33,41 @@
 
 **Working ✅**
 - Record 16 kHz mono WAV · On-device STT (Parakeet) · Background-isolate transcription
-- SQLite persistence · Home / Record / Transcript screens · Copy transcript
+- SQLite persistence · Home / Record / Transcript screens
+- **Summarize → minutes (LLM) · Map-reduce · Action items · Ask (chat grounded in meeting)**
+- **Animations:** record pulse rings · staggered list entrance · minutes reveal · action-chip stagger · typing indicator
+- Search meetings · Swipe-to-delete + undo · Share (minutes/transcript) · Copy
 - Calm & trustworthy Material 3 theme · "On-device" privacy badge
 
 **Todo ⬜**
-- Summary / minutes (LLM) · Map-reduce for long meetings · Custom minutes templates
-- Export PDF · Export Word (.docx)
+- Custom minutes templates · Export PDF · Export Word (.docx)
 - In-app model download · Device tiering (auto model select) · "Go higher" toggle + warning
 - Speaker diarization
-- General-assistant chat panel · Chat grounded in meeting + documents
+- Standalone chat panel (beyond per-meeting Ask) · Chat over documents
 - Document parse: PDF · DOCX · MD/TXT
 - Tier-selectable AI engine (on-device default + online BYO) · Online STT provider
-- Settings screen · Audio playback · Rename meeting · Delete-from-UI (repo delete exists, no button yet)
+- Settings screen · Audio playback · Rename meeting
 - Recording pause/resume · live audio level meter
+
+---
+
+## Testing & Quality  → full strategy in [TESTING.md](TESTING.md)
+
+World-class quality requires **real-device testing across a tier matrix** (emulators can't measure speed/RAM/thermal/battery for on-device ML). Workstream:
+
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| T0 | Test foundation: fakes (repo/STT/AI) + expand unit + widget tests (3 screens) | ⬜ | Have: map_reduce, recording_config, transcript, benchmark unit tests |
+| T1 | Golden tests (light/dark) + summarize integration test + **airplane-mode privacy gate** | ⬜ | Zero-network assertion is a hard gate |
+| T2 | CI pipeline (analyze + tests + debug build) on PRs; pick runner (GH Actions / Codemagic) | ⬜ | Debug build catches sherpa/fllama native breakage |
+| T3 | Real-device matrix on a cloud farm (Firebase Test Lab primary) — nightly integration + perf | ⬜ | Android low/mid/high tiers; iOS later |
+| T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
+| T5 | LLM minutes quality eval (rubric + LLM-as-judge) per model tier | ⬜ | |
+| T6 | Perf/thermal/battery harness → **device-tier→model table** (feeds S5) | ⬜ | |
+| T7 | Accessibility + **Arabic / RTL** pass (GCC market) | ⬜ | |
+| T8 | Automated release gates + quality dashboard | ⬜ | |
+
+**Current automated coverage:** unit tests in all 4 packages + app (`melos run test`); one STT integration test; sentinel-gated on-device STT & LLM self-tests. **Gaps:** no widget/golden tests, no CI, no device matrix, no ML-quality/perf harness yet.
 
 ---
 
@@ -69,6 +92,7 @@
 ---
 
 ## Reference docs
+- **Testing & quality strategy: `TESTING.md`**
 - Design spec: `docs/superpowers/specs/2026-07-09-privoice-monorepo-phase1-mvp-design.md`
 - S0–S1 plan: `docs/superpowers/plans/2026-07-09-privoice-s0-s1-bootstrap-and-stt-spike.md`
 - STT benchmark: `docs/superpowers/benchmarks/2026-07-09-stt-spike-results.md`
