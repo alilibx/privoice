@@ -194,29 +194,80 @@ class _RecordScreenState extends State<RecordScreen> {
   }
 }
 
-class _RecordButton extends StatelessWidget {
+class _RecordButton extends StatefulWidget {
   const _RecordButton({required this.recording, required this.onTap});
 
   final bool recording;
   final VoidCallback onTap;
 
   @override
+  State<_RecordButton> createState() => _RecordButtonState();
+}
+
+class _RecordButtonState extends State<_RecordButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1400))
+    ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 108,
-        height: 108,
-        decoration: BoxDecoration(
-          color: recording ? scheme.errorContainer : scheme.primaryContainer,
-          shape: BoxShape.circle,
-        ),
-        child: Icon(
-          recording ? Icons.stop_rounded : Icons.mic_rounded,
-          size: 48,
-          color: recording ? scheme.onErrorContainer : scheme.onPrimaryContainer,
+      onTap: widget.onTap,
+      child: SizedBox(
+        width: 200,
+        height: 200,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Expanding pulse rings while recording.
+            if (widget.recording)
+              AnimatedBuilder(
+                animation: _c,
+                builder: (_, _) {
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: List.generate(2, (i) {
+                      final t = (_c.value + i * 0.5) % 1.0;
+                      return Container(
+                        width: 108 + t * 90,
+                        height: 108 + t * 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: scheme.error.withValues(alpha: (1 - t) * 0.18),
+                        ),
+                      );
+                    }),
+                  );
+                },
+              ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              width: 108,
+              height: 108,
+              decoration: BoxDecoration(
+                color: widget.recording
+                    ? scheme.errorContainer
+                    : scheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                widget.recording ? Icons.stop_rounded : Icons.mic_rounded,
+                size: 48,
+                color: widget.recording
+                    ? scheme.onErrorContainer
+                    : scheme.onPrimaryContainer,
+              ),
+            ),
+          ],
         ),
       ),
     );

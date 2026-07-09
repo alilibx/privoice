@@ -11,6 +11,8 @@ Privacy-first meeting transcription app (Flutter, Android-first). Record → tra
 - Treat "update STATUS.md" as part of *done*, not an afterthought. A task isn't complete until STATUS.md reflects it.
 - Keep it honest: mark things ✅ only when actually verified (tests pass / ran on device), not when code is merely written.
 
+**Testing:** the full quality strategy (test pyramid, on-device ML quality, real-device matrix, CI, privacy gates) lives in [TESTING.md](TESTING.md); its progress is the "Testing & Quality" workstream in STATUS.md.
+
 ## Architecture
 
 Melos monorepo. `apps/mobile` (Flutter app) depends on `packages/*`; packages never depend on the app.

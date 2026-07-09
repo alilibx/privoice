@@ -1,8 +1,8 @@
 /// Lifecycle of a recorded meeting through the pipeline.
 enum MeetingStatus { recorded, transcribing, done, failed }
 
-/// One recorded meeting: its audio, and (once processed) its transcript.
-/// Minutes/summary land in a later slice.
+/// One recorded meeting: its audio, transcript, and AI outputs (minutes +
+/// action items) once generated.
 class Meeting {
   const Meeting({
     this.id,
@@ -11,6 +11,8 @@ class Meeting {
     required this.audioPath,
     required this.durationMs,
     this.transcript,
+    this.minutes,
+    this.actionItems = const [],
     this.status = MeetingStatus.recorded,
   });
 
@@ -20,12 +22,16 @@ class Meeting {
   final String audioPath;
   final int durationMs;
   final String? transcript;
+  final String? minutes;
+  final List<String> actionItems;
   final MeetingStatus status;
 
   Meeting copyWith({
     int? id,
     String? title,
     String? transcript,
+    String? minutes,
+    List<String>? actionItems,
     MeetingStatus? status,
   }) {
     return Meeting(
@@ -35,6 +41,8 @@ class Meeting {
       audioPath: audioPath,
       durationMs: durationMs,
       transcript: transcript ?? this.transcript,
+      minutes: minutes ?? this.minutes,
+      actionItems: actionItems ?? this.actionItems,
       status: status ?? this.status,
     );
   }
@@ -46,6 +54,8 @@ class Meeting {
         'audio_path': audioPath,
         'duration_ms': durationMs,
         'transcript': transcript,
+        'minutes': minutes,
+        'action_items': actionItems.isEmpty ? null : actionItems.join('\n'),
         'status': status.name,
       };
 
@@ -57,6 +67,12 @@ class Meeting {
         audioPath: row['audio_path'] as String,
         durationMs: row['duration_ms'] as int,
         transcript: row['transcript'] as String?,
+        minutes: row['minutes'] as String?,
+        actionItems: (row['action_items'] as String?)
+                ?.split('\n')
+                .where((s) => s.trim().isNotEmpty)
+                .toList() ??
+            const [],
         status: MeetingStatus.values.byName(row['status'] as String),
       );
 }

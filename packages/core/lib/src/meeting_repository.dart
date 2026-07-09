@@ -24,7 +24,7 @@ class SqfliteMeetingRepository implements MeetingRepository {
     final dir = await getApplicationDocumentsDirectory();
     final db = await openDatabase(
       p.join(dir.path, 'privoice.db'),
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE meetings (
@@ -34,9 +34,17 @@ class SqfliteMeetingRepository implements MeetingRepository {
             audio_path TEXT NOT NULL,
             duration_ms INTEGER NOT NULL,
             transcript TEXT,
+            minutes TEXT,
+            action_items TEXT,
             status TEXT NOT NULL
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute('ALTER TABLE meetings ADD COLUMN minutes TEXT');
+          await db.execute('ALTER TABLE meetings ADD COLUMN action_items TEXT');
+        }
       },
     );
     return SqfliteMeetingRepository._(db);

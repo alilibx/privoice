@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** Record → transcribe → save works on a real phone (STT proven, RTF 0.44). Building the AI layer: on-device LLM (fllama) **builds on Android** (`libfllama.so` bundled); `ai` package with summarize/action-items/chat + map-reduce written; LLM device spike (Llama 3.2 1B) in progress. Then smart-actions UI + animations.
+**Now:** Record → transcribe → save works on a real phone (STT proven, RTF 0.44). On-device LLM proven (Llama 3.2 1B via fllama → clean minutes in 6.1s). Smart-actions UI (Summarize / Action items / Ask) + animations built. Testing strategy defined ([TESTING.md](TESTING.md)) — real-device matrix + ML-quality harness planned.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -48,6 +48,26 @@
 
 ---
 
+## Testing & Quality  → full strategy in [TESTING.md](TESTING.md)
+
+World-class quality requires **real-device testing across a tier matrix** (emulators can't measure speed/RAM/thermal/battery for on-device ML). Workstream:
+
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| T0 | Test foundation: fakes (repo/STT/AI) + expand unit + widget tests (3 screens) | ⬜ | Have: map_reduce, recording_config, transcript, benchmark unit tests |
+| T1 | Golden tests (light/dark) + summarize integration test + **airplane-mode privacy gate** | ⬜ | Zero-network assertion is a hard gate |
+| T2 | CI pipeline (analyze + tests + debug build) on PRs; pick runner (GH Actions / Codemagic) | ⬜ | Debug build catches sherpa/fllama native breakage |
+| T3 | Real-device matrix on a cloud farm (Firebase Test Lab primary) — nightly integration + perf | ⬜ | Android low/mid/high tiers; iOS later |
+| T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
+| T5 | LLM minutes quality eval (rubric + LLM-as-judge) per model tier | ⬜ | |
+| T6 | Perf/thermal/battery harness → **device-tier→model table** (feeds S5) | ⬜ | |
+| T7 | Accessibility + **Arabic / RTL** pass (GCC market) | ⬜ | |
+| T8 | Automated release gates + quality dashboard | ⬜ | |
+
+**Current automated coverage:** unit tests in all 4 packages + app (`melos run test`); one STT integration test; sentinel-gated on-device STT & LLM self-tests. **Gaps:** no widget/golden tests, no CI, no device matrix, no ML-quality/perf harness yet.
+
+---
+
 ## Known gaps / tech debt
 
 - **Model delivery:** model is only present via manual `adb push` (flat `files/` root). S5 in-app download is required for a real app.
@@ -69,6 +89,7 @@
 ---
 
 ## Reference docs
+- **Testing & quality strategy: `TESTING.md`**
 - Design spec: `docs/superpowers/specs/2026-07-09-privoice-monorepo-phase1-mvp-design.md`
 - S0–S1 plan: `docs/superpowers/plans/2026-07-09-privoice-s0-s1-bootstrap-and-stt-spike.md`
 - STT benchmark: `docs/superpowers/benchmarks/2026-07-09-stt-spike-results.md`
