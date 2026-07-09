@@ -1,0 +1,27 @@
+name: mobile
+description: "Privoice — privacy-first meeting transcription."
+publish_to: 'none'
+resolution: workspace
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  privoice_audio:
+    path: ../../packages/audio
+  privoice_stt:
+    path: ../../packages/stt
+  path: ^1.9.0
+  path_provider: ^2.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

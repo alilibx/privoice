@@ -1,0 +1,25 @@
+name: privoice_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+# Dart pub workspace (Melos 8 uses this for package discovery + a shared lockfile).
+workspace:
+  - apps/mobile
+  - packages/core
+  - packages/audio
+  - packages/stt
+
+dev_dependencies:
+  melos: ^8.2.0
+
+melos:
+  name: privoice
+  scripts:
+    analyze:
+      exec: flutter analyze
+      description: Analyze all packages
+    test:
+      exec: flutter test
+      description: Run tests in all packages that have them
