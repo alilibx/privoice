@@ -16,7 +16,8 @@
 | S0 | Toolchain bootstrap + melos monorepo | ✅ | Flutter 3.44.5, JDK17, Android SDK 36 |
 | S1 | On-device STT spike | ✅ 🧪 | **GO** — real device (Redmi 15C), RTF 0.44, perfect on clean sample |
 | S2 | Record → Transcribe UI + persistence | ✅ | Off-thread STT, SQLite, calm/trustworthy theme. Merged to main |
-| S3 | On-device LLM: summary / minutes (map-reduce) | 🔨 🧪 | **Spike GO** — Llama 3.2 1B Q4 via fllama summarized a transcript into clean minutes in 6.1s (emulator). Building smart-actions UI |
+| S3 | On-device LLM: summary / minutes (map-reduce) | ✅ 🧪 | Works on-device (Llama 3.2 1B via fllama). Smart-actions UI shipped. 3B quality tier + quality eval pending (T5) |
+| S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
 | S5 | In-app model download + device tiering | ⬜ | Makes app self-sufficient (no adb push) |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
@@ -32,18 +33,20 @@
 
 **Working ✅**
 - Record 16 kHz mono WAV · On-device STT (Parakeet) · Background-isolate transcription
-- SQLite persistence · Home / Record / Transcript screens · Copy transcript
+- SQLite persistence · Home / Record / Transcript screens
+- **Summarize → minutes (LLM) · Map-reduce · Action items · Ask (chat grounded in meeting)**
+- **Animations:** record pulse rings · staggered list entrance · minutes reveal · action-chip stagger · typing indicator
+- Search meetings · Swipe-to-delete + undo · Share (minutes/transcript) · Copy
 - Calm & trustworthy Material 3 theme · "On-device" privacy badge
 
 **Todo ⬜**
-- Summary / minutes (LLM) · Map-reduce for long meetings · Custom minutes templates
-- Export PDF · Export Word (.docx)
+- Custom minutes templates · Export PDF · Export Word (.docx)
 - In-app model download · Device tiering (auto model select) · "Go higher" toggle + warning
 - Speaker diarization
-- General-assistant chat panel · Chat grounded in meeting + documents
+- Standalone chat panel (beyond per-meeting Ask) · Chat over documents
 - Document parse: PDF · DOCX · MD/TXT
 - Tier-selectable AI engine (on-device default + online BYO) · Online STT provider
-- Settings screen · Audio playback · Rename meeting · Delete-from-UI (repo delete exists, no button yet)
+- Settings screen · Audio playback · Rename meeting
 - Recording pause/resume · live audio level meter
 
 ---
