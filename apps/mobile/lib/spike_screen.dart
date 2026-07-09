@@ -89,14 +89,16 @@ class _SpikeScreenState extends State<SpikeScreen> {
   String _transcript = '';
   String _bench = '';
 
-  /// Matches tools/fetch-and-push-model.sh DEST:
-  /// `/sdcard/Android/data/<app>/files/models/parakeet-tdt-v3-int8`
+  /// Spike model location: the app-owned external files/ root (flat).
+  /// adb-pushed files here are readable by the app, unlike adb-created nested
+  /// subdirs (a scoped-storage/FUSE quirk). The real download flow (S5) will
+  /// use a proper nested dir it creates itself.
   Future<String> _modelDir() async {
     final ext = await getExternalStorageDirectory();
     if (ext == null) {
       throw StateError('External storage unavailable (Android only).');
     }
-    return p.join(ext.path, 'models', 'parakeet-tdt-v3-int8');
+    return ext.path;
   }
 
   Future<void> _ensureInit() async {
