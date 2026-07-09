@@ -18,34 +18,44 @@ abstract class MeetingRepository {
 class SqfliteMeetingRepository implements MeetingRepository {
   SqfliteMeetingRepository._(this._db);
 
+  /// Wraps an already-open [Database] — used by tests (in-memory ffi).
+  SqfliteMeetingRepository.fromDatabase(this._db);
+
   final Database _db;
+
+  static const schemaVersion = 2;
+
+  static Future<void> onCreate(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE meetings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        audio_path TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        transcript TEXT,
+        minutes TEXT,
+        action_items TEXT,
+        status TEXT NOT NULL
+      )
+    ''');
+  }
+
+  static Future<void> onUpgrade(
+      Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE meetings ADD COLUMN minutes TEXT');
+      await db.execute('ALTER TABLE meetings ADD COLUMN action_items TEXT');
+    }
+  }
 
   static Future<SqfliteMeetingRepository> open() async {
     final dir = await getApplicationDocumentsDirectory();
     final db = await openDatabase(
       p.join(dir.path, 'privoice.db'),
-      version: 2,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE meetings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            audio_path TEXT NOT NULL,
-            duration_ms INTEGER NOT NULL,
-            transcript TEXT,
-            minutes TEXT,
-            action_items TEXT,
-            status TEXT NOT NULL
-          )
-        ''');
-      },
-      onUpgrade: (db, oldVersion, newVersion) async {
-        if (oldVersion < 2) {
-          await db.execute('ALTER TABLE meetings ADD COLUMN minutes TEXT');
-          await db.execute('ALTER TABLE meetings ADD COLUMN action_items TEXT');
-        }
-      },
+      version: schemaVersion,
+      onCreate: onCreate,
+      onUpgrade: onUpgrade,
     );
     return SqfliteMeetingRepository._(db);
   }
