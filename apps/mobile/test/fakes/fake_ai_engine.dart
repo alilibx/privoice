@@ -1,0 +1,34 @@
+import 'package:privoice_ai/privoice_ai.dart';
+
+/// Canned [AiEngine] for tests — deterministic, instant, no model.
+class FakeAiEngine implements AiEngine {
+  FakeAiEngine({
+    this.minutes = '### Summary\nFake minutes for tests.',
+    this.items = const ['Alice: ship it'],
+    this.answer = 'Fake answer.',
+  });
+
+  final String minutes;
+  final List<String> items;
+  final String answer;
+
+  @override
+  Future<String> summarize(
+    String transcript, {
+    String? userInstructions,
+    void Function(double)? onProgress,
+  }) async {
+    onProgress?.call(1.0);
+    return minutes;
+  }
+
+  @override
+  Future<List<String>> actionItems(String transcript) async => items;
+
+  @override
+  Future<String> chat(List<ChatMessage> messages, {String? context}) async =>
+      answer;
+
+  @override
+  Future<void> dispose() async {}
+}

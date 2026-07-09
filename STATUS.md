@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** Record → transcribe → save works on a real phone (STT proven, RTF 0.44). On-device LLM proven (Llama 3.2 1B via fllama → clean minutes in 6.1s). Smart-actions UI (Summarize / Action items / Ask) + animations built. Testing strategy defined ([TESTING.md](TESTING.md)) — real-device matrix + ML-quality harness planned.
+**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **Test foundation (T0) done — 28 passing tests** (unit + widget + repository); CI workflow written (T2). Next: golden + privacy gate (T1), then cloud device matrix (T3).
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -57,9 +57,9 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
-| T0 | Test foundation: fakes (repo/STT/AI) + expand unit + widget tests (3 screens) | ⬜ | Have: map_reduce, recording_config, transcript, benchmark unit tests |
+| T0 | Test foundation: fakes (repo/AI) + unit + widget tests | ✅ | 28 tests: fakes, Meeting serialization, repository CRUD (ffi in-memory), prompts, map_reduce, Home + Transcript widget tests |
 | T1 | Golden tests (light/dark) + summarize integration test + **airplane-mode privacy gate** | ⬜ | Zero-network assertion is a hard gate |
-| T2 | CI pipeline (analyze + tests + debug build) on PRs; pick runner (GH Actions / Codemagic) | ⬜ | Debug build catches sherpa/fllama native breakage |
+| T2 | CI pipeline (analyze + tests + debug build) on PRs | 🔨 | `.github/workflows/ci.yml` written (GH Actions); runs once repo is pushed to a remote |
 | T3 | Real-device matrix on a cloud farm (Firebase Test Lab primary) — nightly integration + perf | ⬜ | Android low/mid/high tiers; iOS later |
 | T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
 | T5 | LLM minutes quality eval (rubric + LLM-as-judge) per model tier | ⬜ | |
@@ -67,7 +67,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 | T7 | Accessibility + **Arabic / RTL** pass (GCC market) | ⬜ | |
 | T8 | Automated release gates + quality dashboard | ⬜ | |
 
-**Current automated coverage:** unit tests in all 4 packages + app (`melos run test`); one STT integration test; sentinel-gated on-device STT & LLM self-tests. **Gaps:** no widget/golden tests, no CI, no device matrix, no ML-quality/perf harness yet.
+**Current automated coverage:** **28 tests** (`melos run test`) — unit (serialization, repository CRUD via in-memory ffi, prompts, map-reduce, config, benchmark) + **widget tests** (Home: empty/list/search; Transcript: smart-action bar, summarize→minutes, action-item chips) with fakes for repo/AI. Plus one STT integration test + sentinel-gated on-device STT & LLM self-tests. CI workflow written. **Gaps:** golden tests, privacy zero-network gate, device matrix, ML-quality/perf harness, live CI run.
 
 ---
 

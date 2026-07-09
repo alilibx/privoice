@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  FLUTTER_VERSION: "3.44.5"
+
+jobs:
+  analyze-and-test:
+    name: Analyze + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Activate melos
+        run: |
+          dart pub global activate melos
+          echo "$HOME/.pub-cache/bin" >> "$GITHUB_PATH"
+      - name: Resolve workspace
+        run: flutter pub get
+      - name: Analyze
+        run: melos run analyze
+      - name: Test
+        run: melos run test
+
+  build-android:
+    name: Android debug build (catches native breakage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - name: Resolve workspace
+        run: flutter pub get
+      # Builds sherpa-onnx + fllama native libs — the real "does it still compile"
+      # gate. Slow on first run (NDK/CMake + llama.cpp compile).
+      - name: Build debug APK
+        working-directory: apps/mobile
+        run: flutter build apk --debug
