@@ -1,0 +1,30 @@
+# Dart/Flutter
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+.idea/
+.vscode/
+
+# Android
+.gradle/
+local.properties
+*.keystore
+key.properties
+
+# iOS/macOS (not built now, keep clean anyway)
+**/Pods/
+*.xcworkspace/xcuserdata/
+
+# Models (never commit — large, fetched on device)
+**/models/*.onnx
+**/models/*.bin
+**/models/*.gguf
+
+# Recorded audio
+*.wav
+
+# macOS
+.DS_Store
