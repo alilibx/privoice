@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SettingsService {
   static const _kUseLargeModel = 'use_large_model';
   static const _kThemeMode = 'theme_mode';
+  static const _kOnboardingComplete = 'onboarding_complete';
 
   static Future<bool> useLargeModel() async {
     final prefs = await SharedPreferences.getInstance();
@@ -14,6 +15,16 @@ class SettingsService {
   static Future<void> setUseLargeModel(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kUseLargeModel, value);
+  }
+
+  static Future<bool> onboardingComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kOnboardingComplete) ?? false;
+  }
+
+  static Future<void> setOnboardingComplete(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOnboardingComplete, value);
   }
 
   static Future<ThemeMode> themeMode() async {
