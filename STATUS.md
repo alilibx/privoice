@@ -58,7 +58,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
 | T0 | Test foundation: fakes (repo/AI) + unit + widget tests | ✅ | 28 tests: fakes, Meeting serialization, repository CRUD (ffi in-memory), prompts, map_reduce, Home + Transcript widget tests |
-| T1 | Golden tests (light/dark) + summarize integration test + **airplane-mode privacy gate** | ⬜ | Zero-network assertion is a hard gate |
+| T1 | Golden tests (light/dark) + **zero-network privacy gate** | 🔨 | **Privacy gate ✅** — `privacy_gate_test.dart` asserts the offline flow creates 0 HTTP clients (Dart layer); OS-level airplane check via device is the complement. Golden tests still ⬜ |
 | T2 | CI pipeline (analyze + tests + debug build) on PRs | ✅ | **Green on GitHub Actions**: analyze + test (10m) and Android debug build incl. fllama/sherpa native (15m) both pass. Tests run sequentially to avoid the native-build race |
 | T3 | Real-device matrix on Firebase Test Lab | 🔨 | `tools/run-test-lab.sh` ready (**Robo crawl** on app APK — sidesteps the fllama+native-assets `assembleAndroidTest` friction). **Smoke integration test passes on emulator** (`app_smoke_test.dart`). Needs FTL project id to run the matrix. Instrumentation-on-FTL = follow-up |
 | T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
