@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **Testing: T0 ✅ (29 tests), T2 ✅ (CI green), T3 ✅ (Firebase Test Lab matrix green on real phones), T1 🔨 (privacy zero-network gate ✅; golden tests todo).** Fixed a real record-screen crash found via the smoke test. Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
+**Now:** On-device record→transcribe→summarize works. **Redesign in progress** (mockups approved: calm-teal elevated, light+dark, guided onboarding). **Perceived-perf fixes landed** (R2): LLM token streaming, result reuse, no double-work on action items, model warm-up — fixes the slow/reprocessing smart actions (on-device timing to re-verify once S5 models install). **Testing:** T0 ✅ · T1 🔨 (privacy gate ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
