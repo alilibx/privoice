@@ -206,12 +206,15 @@ class _RecordButton extends StatefulWidget {
 
 class _RecordButtonState extends State<_RecordButton>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1400));
+  late final AnimationController _c;
 
   @override
   void initState() {
     super.initState();
+    // Create eagerly here (element is active). A lazy `late final` would first
+    // create the ticker inside dispose() → "deactivated ancestor lookup" crash.
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400));
     if (widget.recording) _c.repeat();
   }
 
