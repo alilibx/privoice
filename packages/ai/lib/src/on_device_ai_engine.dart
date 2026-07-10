@@ -9,18 +9,20 @@ import 'prompts.dart';
 /// [AiEngine] backed by fllama (llama.cpp) running a small GGUF model fully
 /// on-device. The only file that touches fllama.
 ///
-/// fllama runs inference off the UI isolate internally and streams tokens via
-/// the callback; we complete on `done`.
+/// fllama streams tokens via its callback; we surface them through [onToken]
+/// and complete on `done`.
 class OnDeviceAiEngine implements AiEngine {
   OnDeviceAiEngine(this.modelPath);
 
   final String modelPath;
+  bool _warmed = false;
 
   Future<String> _run(
     List<ChatMessage> messages, {
     int maxTokens = 512,
     double temperature = 0.4,
     int contextSize = 4096,
+    void Function(String partial)? onToken,
   }) {
     final req = OpenAiRequest(
       modelPath: modelPath,
@@ -34,6 +36,7 @@ class OnDeviceAiEngine implements AiEngine {
 
     final completer = Completer<String>();
     fllamaChat(req, (response, _, done) {
+      if (onToken != null) onToken(response);
       if (done && !completer.isCompleted) {
         completer.complete(response.trim());
       }
@@ -48,9 +51,21 @@ class OnDeviceAiEngine implements AiEngine {
       };
 
   @override
+  Future<void> warmUp() async {
+    if (_warmed) return;
+    try {
+      await _run([ChatMessage.user('hi')], maxTokens: 1);
+      _warmed = true;
+    } catch (_) {
+      // best-effort; the real call will surface any error
+    }
+  }
+
+  @override
   Future<String> summarize(
     String transcript, {
     String? userInstructions,
+    void Function(String partial)? onToken,
     void Function(double progress)? onProgress,
   }) async {
     if (transcript.trim().isEmpty) return '';
@@ -60,12 +75,13 @@ class OnDeviceAiEngine implements AiEngine {
       final out = await _run(
         [ChatMessage.user(Prompts.summarizeWhole(transcript, userInstructions))],
         maxTokens: 700,
+        onToken: onToken,
       );
       onProgress?.call(1.0);
       return out;
     }
 
-    // Map: summarize each chunk.
+    // Map: summarize each chunk (coarse progress, no token stream).
     final chunks = chunkTranscript(transcript);
     final partials = <String>[];
     for (var i = 0; i < chunks.length; i++) {
@@ -77,23 +93,23 @@ class OnDeviceAiEngine implements AiEngine {
       onProgress?.call((i + 1) / (chunks.length + 1));
     }
 
-    // Reduce: summarize the summaries into final minutes.
+    // Reduce: stream the final minutes.
     final minutes = await _run(
       [ChatMessage.user(Prompts.reduce(partials.join('\n\n'), userInstructions))],
       maxTokens: 800,
+      onToken: onToken,
     );
     onProgress?.call(1.0);
     return minutes;
   }
 
   @override
-  Future<List<String>> actionItems(String transcript) async {
-    if (transcript.trim().isEmpty) return const [];
-    // For long meetings, extract from the condensed minutes for coherence.
-    final source =
-        needsMapReduce(transcript) ? await summarize(transcript) : transcript;
+  Future<List<String>> actionItems(String source) async {
+    if (source.trim().isEmpty) return const [];
+    // Extract from whatever the caller passed (minutes preferred). Cap to fit
+    // the context window; never re-summarize here.
     final out = await _run(
-      [ChatMessage.user(Prompts.actionItems(source))],
+      [ChatMessage.user(Prompts.actionItems(_cap(source, 2500)))],
       maxTokens: 300,
     );
     return out
@@ -104,15 +120,19 @@ class OnDeviceAiEngine implements AiEngine {
   }
 
   @override
-  Future<String> chat(List<ChatMessage> messages, {String? context}) async {
+  Future<String> chat(
+    List<ChatMessage> messages, {
+    String? context,
+    void Function(String partial)? onToken,
+  }) async {
     final system = context == null || context.trim().isEmpty
         ? Prompts.chatSystem
         : '${Prompts.chatSystem}\n\nMeeting context:\n${_cap(context, 3000)}';
     final full = <ChatMessage>[ChatMessage.system(system), ...messages];
-    return _run(full, maxTokens: 512, temperature: 0.6);
+    return _run(full, maxTokens: 512, temperature: 0.6, onToken: onToken);
   }
 
-  /// Word-cap the grounding context so it fits the model window.
+  /// Word-cap text so it fits the model window.
   static String _cap(String text, int maxWords) {
     final words = text.split(RegExp(r'\s+'));
     if (words.length <= maxWords) return text;

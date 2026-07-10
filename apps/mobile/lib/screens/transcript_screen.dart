@@ -31,12 +31,15 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   bool _busy = false;
   String _busyLabel = '';
   double _progress = 0;
+  String _streaming = '';
 
   @override
   void initState() {
     super.initState();
     _meeting = widget.meeting;
     _tabs = TabController(length: 2, vsync: this);
+    // Pre-warm the model so the first smart action isn't cold.
+    widget.ai.warmUp();
   }
 
   @override
@@ -47,16 +50,20 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
   String get _transcript => (_meeting.transcript ?? '').trim();
 
-  Future<void> _summarize() async {
+  Future<void> _summarize({bool force = false}) async {
     if (_transcript.isEmpty || _busy) return;
+    _tabs.animateTo(1);
+    // Reuse: don't reprocess if we already have minutes.
+    if (!force && (_meeting.minutes ?? '').isNotEmpty) return;
     setState(() {
       _busy = true;
       _busyLabel = 'Generating minutes…';
       _progress = 0;
+      _streaming = '';
     });
-    _tabs.animateTo(1);
     final minutes = await widget.ai.summarize(
       _transcript,
+      onToken: (partial) => setState(() => _streaming = partial),
       onProgress: (p) => setState(() => _progress = p),
     );
     if (!mounted) return;
@@ -72,13 +79,23 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
   Future<void> _actionItems() async {
     if (_transcript.isEmpty || _busy) return;
+    if (_meeting.actionItems.isNotEmpty) {
+      _tabs.animateTo(1);
+      return; // reuse
+    }
     setState(() {
       _busy = true;
       _busyLabel = 'Finding action items…';
       _progress = 0;
+      _streaming = '';
     });
     _tabs.animateTo(1);
-    final items = await widget.ai.actionItems(_transcript);
+    // Prefer the already-generated minutes as the source (short + coherent);
+    // avoids re-summarizing the whole transcript.
+    final source = (_meeting.minutes ?? '').isNotEmpty
+        ? _meeting.minutes!
+        : _transcript;
+    final items = await widget.ai.actionItems(source);
     if (!mounted) return;
     if (items == null) {
       _snack('AI model not installed yet.');
@@ -165,7 +182,10 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   }
 
   Widget _minutesTab(ColorScheme scheme) {
-    if (_busy) return _GeneratingView(label: _busyLabel, progress: _progress);
+    if (_busy) {
+      return _GeneratingView(
+          label: _busyLabel, progress: _progress, streaming: _streaming);
+    }
 
     final hasMinutes = (_meeting.minutes ?? '').isNotEmpty;
     final hasItems = _meeting.actionItems.isNotEmpty;
@@ -196,6 +216,16 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                   .copyWith(p: const TextStyle(fontSize: 15.5, height: 1.5)),
             ),
           ),
+        if (hasMinutes) ...[
+          const SizedBox(height: 20),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => _summarize(force: true),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Regenerate minutes'),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -343,13 +373,33 @@ class _RevealFade extends StatelessWidget {
 }
 
 class _GeneratingView extends StatelessWidget {
-  const _GeneratingView({required this.label, required this.progress});
+  const _GeneratingView(
+      {required this.label, required this.progress, this.streaming = ''});
   final String label;
   final double progress;
+  final String streaming;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
+    // Once tokens start streaming, show the text appearing live (feels instant).
+    if (streaming.trim().isNotEmpty) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
+        children: [
+          Row(children: [
+            _PulsingSparkle(color: scheme.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(label,
+                style: TextStyle(color: scheme.primary, fontWeight: FontWeight.w600)),
+          ]),
+          const SizedBox(height: 16),
+          Text(streaming, style: const TextStyle(fontSize: 15.5, height: 1.5)),
+        ],
+      );
+    }
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -378,17 +428,24 @@ class _GeneratingView extends StatelessWidget {
 }
 
 class _PulsingSparkle extends StatefulWidget {
-  const _PulsingSparkle({required this.color});
+  const _PulsingSparkle({required this.color, this.size = 44});
   final Color color;
+  final double size;
   @override
   State<_PulsingSparkle> createState() => _PulsingSparkleState();
 }
 
 class _PulsingSparkleState extends State<_PulsingSparkle>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1200))
-    ..repeat(reverse: true);
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat(reverse: true);
+  }
 
   @override
   void dispose() {
@@ -401,7 +458,7 @@ class _PulsingSparkleState extends State<_PulsingSparkle>
     return ScaleTransition(
       scale: Tween(begin: 0.85, end: 1.15)
           .animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut)),
-      child: Icon(Icons.auto_awesome, size: 44, color: widget.color),
+      child: Icon(Icons.auto_awesome, size: widget.size, color: widget.color),
     );
   }
 }
