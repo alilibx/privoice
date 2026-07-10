@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:privoice_models/privoice_models.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 /// Downloads a set of models with progress. Used for first-launch setup and
 /// for fetching the larger model from Settings.
@@ -37,8 +38,15 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
   String get _totalLabel =>
       '${(_totalBytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
 
+  @override
+  void dispose() {
+    WakelockPlus.disable();
+    super.dispose();
+  }
+
   Future<void> _run() async {
     setState(() => _state = _S.downloading);
+    WakelockPlus.enable(); // keep the screen on during the one-time download
     try {
       for (var i = 0; i < widget.specs.length; i++) {
         setState(() => _index = i);
@@ -58,6 +66,8 @@ class _ModelDownloadScreenState extends State<ModelDownloadScreen> {
         _state = _S.error;
         _error = '$e';
       });
+    } finally {
+      WakelockPlus.disable();
     }
   }
 

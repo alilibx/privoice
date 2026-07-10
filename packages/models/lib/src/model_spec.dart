@@ -6,10 +6,16 @@ class ModelFile {
   const ModelFile({
     required this.url,
     required this.fileName,
+    this.fallbackUrl,
     this.isTarBz2 = false,
   });
 
+  /// Primary source (free direct-from-source: GitHub / Hugging Face).
   final String url;
+
+  /// Optional mirror tried if [url] fails (e.g. our Firebase Storage bucket).
+  final String? fallbackUrl;
+
   final String fileName;
 
   /// If true, the downloaded file is a .tar.bz2 to extract in place.
@@ -58,6 +64,8 @@ class ModelCatalog {
       ModelFile(
         url:
             'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2',
+        fallbackUrl:
+            'https://storage.googleapis.com/privoice-app-models/models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2',
         fileName: 'parakeet.tar.bz2',
         isTarBz2: true,
       ),
@@ -80,6 +88,8 @@ class ModelCatalog {
       ModelFile(
         url:
             'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+        fallbackUrl:
+            'https://storage.googleapis.com/privoice-app-models/models/llama-3.2-1b-instruct-q4.gguf',
         fileName: 'llama-3.2-1b-instruct-q4.gguf',
       ),
     ],

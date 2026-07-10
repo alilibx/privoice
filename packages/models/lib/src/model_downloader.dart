@@ -50,7 +50,7 @@ class ModelDownloader {
 
     for (final file in spec.files) {
       final dest = p.join(dir, file.fileName);
-      await _downloadFile(file.url, dest, spec, onProgress);
+      await _downloadFile(file, dest, spec, onProgress);
 
       if (file.isTarBz2) {
         onProgress(_p(spec, 0.96, 'Extracting…'));
@@ -64,7 +64,27 @@ class ModelDownloader {
     onProgress(_p(spec, 1, 'Ready'));
   }
 
+  /// Try the primary URL, then the fallback mirror if it fails.
   Future<void> _downloadFile(
+    ModelFile file,
+    String dest,
+    ModelSpec spec,
+    void Function(ModelInstallProgress) onProgress,
+  ) async {
+    final urls = [file.url, if (file.fallbackUrl != null) file.fallbackUrl!];
+    Object? lastError;
+    for (final url in urls) {
+      try {
+        await _downloadFrom(url, dest, spec, onProgress);
+        return;
+      } catch (e) {
+        lastError = e; // resume/retry from the next source
+      }
+    }
+    throw lastError ?? StateError('download failed: ${file.fileName}');
+  }
+
+  Future<void> _downloadFrom(
     String url,
     String dest,
     ModelSpec spec,
@@ -72,15 +92,27 @@ class ModelDownloader {
   ) async {
     final client = http.Client();
     try {
-      final resp = await client.send(http.Request('GET', Uri.parse(url)));
-      if (resp.statusCode != 200) {
+      final file = File(dest);
+      // Resume: if a partial file exists, ask the server for the rest.
+      var existing = await file.exists() ? await file.length() : 0;
+      final req = http.Request('GET', Uri.parse(url));
+      if (existing > 0) req.headers['range'] = 'bytes=$existing-';
+
+      final resp = await client.send(req);
+      if (resp.statusCode != 200 && resp.statusCode != 206) {
         throw HttpException('HTTP ${resp.statusCode} for $url');
       }
-      final total = resp.contentLength ?? spec.approxBytes;
+      // 206 = server honored the range (append); 200 = full body (restart).
+      final append = resp.statusCode == 206 && existing > 0;
+      if (!append) existing = 0;
+
+      final remaining = resp.contentLength ?? (spec.approxBytes - existing);
+      final total = existing + (remaining > 0 ? remaining : 1);
       // Reserve the last 4% for extraction on archive models.
       final ceiling = spec.files.any((f) => f.isTarBz2) ? 0.95 : 1.0;
-      final sink = File(dest).openWrite();
-      var received = 0;
+
+      final sink = file.openWrite(mode: append ? FileMode.append : FileMode.write);
+      var received = existing;
       await for (final chunk in resp.stream) {
         sink.add(chunk);
         received += chunk.length;
