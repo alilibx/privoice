@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/ai_service.dart';
 import 'package:mobile/model_manager.dart';
 import 'package:mobile/screens/app_bootstrap.dart';
-import 'package:privoice_core/privoice_core.dart';
 import 'package:privoice_models/privoice_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
