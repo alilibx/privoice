@@ -8,8 +8,7 @@ import 'package:privoice_core/privoice_core.dart';
 
 import 'ai_model_paths.dart';
 import 'ai_service.dart';
-import 'screens/home_screen.dart';
-import 'screens/model_gate.dart';
+import 'screens/app_bootstrap.dart';
 import 'settings.dart';
 import 'theme.dart';
 
@@ -120,12 +119,10 @@ class PrivoiceApp extends StatelessWidget {
         theme: PrivoiceTheme.light(),
         darkTheme: PrivoiceTheme.dark(),
         themeMode: mode,
-        home: ModelGate(
-          child: HomeScreen(
-            repository: repository,
-            ai: ai,
-            themeMode: themeMode,
-          ),
+        home: AppBootstrap(
+          repository: repository,
+          ai: ai,
+          themeMode: themeMode,
         ),
       ),
     );

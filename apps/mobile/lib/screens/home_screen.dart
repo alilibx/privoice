@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:privoice_core/privoice_core.dart';
 
 import '../ai_service.dart';
+import '../model_manager.dart';
 import 'record_screen.dart';
 import 'settings_screen.dart';
 import 'transcript_screen.dart';
@@ -14,11 +15,13 @@ class HomeScreen extends StatefulWidget {
     required this.repository,
     required this.ai,
     required this.themeMode,
+    this.modelManager,
   });
 
   final MeetingRepository repository;
   final AiService ai;
   final ValueNotifier<ThemeMode> themeMode;
+  final ModelManager? modelManager;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
