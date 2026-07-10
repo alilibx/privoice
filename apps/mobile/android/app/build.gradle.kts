@@ -23,6 +23,7 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -42,4 +43,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // For Flutter integration tests on Firebase Test Lab.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }

@@ -207,8 +207,23 @@ class _RecordButton extends StatefulWidget {
 class _RecordButtonState extends State<_RecordButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 1400))
-    ..repeat();
+      vsync: this, duration: const Duration(milliseconds: 1400));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.recording) _c.repeat();
+  }
+
+  @override
+  void didUpdateWidget(_RecordButton old) {
+    super.didUpdateWidget(old);
+    if (widget.recording && !_c.isAnimating) {
+      _c.repeat();
+    } else if (!widget.recording && _c.isAnimating) {
+      _c.stop();
+    }
+  }
 
   @override
   void dispose() {

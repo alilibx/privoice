@@ -59,8 +59,8 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 |----|------|--------|-------|
 | T0 | Test foundation: fakes (repo/AI) + unit + widget tests | ✅ | 28 tests: fakes, Meeting serialization, repository CRUD (ffi in-memory), prompts, map_reduce, Home + Transcript widget tests |
 | T1 | Golden tests (light/dark) + summarize integration test + **airplane-mode privacy gate** | ⬜ | Zero-network assertion is a hard gate |
-| T2 | CI pipeline (analyze + tests + debug build) on PRs | 🔨 | `.github/workflows/ci.yml` written (GH Actions); runs once repo is pushed to a remote |
-| T3 | Real-device matrix on a cloud farm (Firebase Test Lab primary) — nightly integration + perf | ⬜ | Android low/mid/high tiers; iOS later |
+| T2 | CI pipeline (analyze + tests + debug build) on PRs | 🔨 | Runs on GitHub. Android native build ✅ passes on CI. Fixed test job: run sequentially (parallel native-asset builds raced). Re-verifying |
+| T3 | Real-device matrix on Firebase Test Lab | 🔨 | `tools/run-test-lab.sh` ready (**Robo crawl** on app APK — sidesteps the fllama+native-assets `assembleAndroidTest` friction). Smoke integration test runs on a connected device. Needs FTL project id. Instrumentation-on-FTL = follow-up |
 | T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
 | T5 | LLM minutes quality eval (rubric + LLM-as-judge) per model tier | ⬜ | |
 | T6 | Perf/thermal/battery harness → **device-tier→model table** (feeds S5) | ⬜ | |
