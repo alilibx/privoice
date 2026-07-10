@@ -3,11 +3,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/ai_service.dart';
+import 'package:mobile/model_manager.dart';
 import 'package:mobile/screens/home_screen.dart';
 import 'package:privoice_core/privoice_core.dart';
+import 'package:privoice_models/privoice_models.dart';
 
 import 'fakes/fake_ai_engine.dart';
 import 'fakes/fake_meeting_repository.dart';
+import 'fakes/fake_model_downloader.dart';
 
 /// Counts any attempt to create a Dart HTTP client.
 class _CountingHttpOverrides extends HttpOverrides {
@@ -55,6 +58,12 @@ void main() {
         repository: FakeMeetingRepository([meeting]),
         ai: AiService(engine: FakeAiEngine()),
         themeMode: ValueNotifier(ThemeMode.system),
+        modelManager: ModelManager(
+          downloader: FakeModelDownloader(installed: {
+            ModelCatalog.parakeetStt.id,
+            ModelCatalog.llama1b.id,
+          }),
+        )..markAllReadyForTest(),
       ),
     ));
     await tester.pumpAndSettle();

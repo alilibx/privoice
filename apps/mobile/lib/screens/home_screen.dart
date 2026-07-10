@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:privoice_core/privoice_core.dart';
+import 'package:privoice_models/privoice_models.dart';
 
 import '../ai_service.dart';
 import '../model_manager.dart';
@@ -33,6 +34,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _searching = false;
   String _query = '';
 
+  ModelManager get _manager => widget.modelManager ?? ModelManager.instance;
+
   @override
   void initState() {
     super.initState();
@@ -59,6 +62,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _record() async {
+    if (!_manager.sttReady) {
+      final pct = (_manager.stateOf(ModelCatalog.parakeetStt).fraction * 100)
+          .round();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Speech-to-text is still downloading ($pct%)'),
+      ));
+      return;
+    }
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => RecordScreen(repository: widget.repository),
@@ -100,6 +111,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _manager,
+      builder: (context, _) => _buildScaffold(context),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
@@ -144,35 +162,61 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _record,
-        icon: const Icon(Icons.mic_rounded),
+        backgroundColor:
+            _manager.sttReady ? null : scheme.surfaceContainerHighest,
+        icon: _manager.sttReady
+            ? const Icon(Icons.mic_rounded)
+            : SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: _manager.stateOf(ModelCatalog.parakeetStt).fraction,
+                ),
+              ),
         label: const Text('Record'),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: _visible.isEmpty
-                  ? _EmptyState(scheme: scheme, searching: _query.isNotEmpty)
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                      itemCount: _visible.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) {
-                        final m = _visible[i];
-                        return _Entrance(
-                          index: i,
-                          child: Dismissible(
-                            key: ValueKey(m.id),
-                            direction: DismissDirection.endToStart,
-                            background: _deleteBg(scheme),
-                            onDismissed: (_) => _delete(m),
-                            child: _MeetingCard(
-                                meeting: m, onTap: () => _open(m)),
-                          ),
-                        );
-                      },
-                    ),
+      body: Column(
+        children: [
+          if (!_manager.allReady)
+            _DownloadBanner(
+              fraction: _manager.overallFraction,
+              hasError: _manager.hasError,
+              onRetry: _manager.ensureDefaultSet,
             ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: _visible.isEmpty
+                        ? _EmptyState(
+                            scheme: scheme, searching: _query.isNotEmpty)
+                        : ListView.separated(
+                            padding:
+                                const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                            itemCount: _visible.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (_, i) {
+                              final m = _visible[i];
+                              return _Entrance(
+                                index: i,
+                                child: Dismissible(
+                                  key: ValueKey(m.id),
+                                  direction: DismissDirection.endToStart,
+                                  background: _deleteBg(scheme),
+                                  onDismissed: (_) => _delete(m),
+                                  child: _MeetingCard(
+                                      meeting: m, onTap: () => _open(m)),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -337,6 +381,59 @@ class _EmptyState extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _DownloadBanner extends StatelessWidget {
+  const _DownloadBanner({
+    required this.fraction,
+    required this.hasError,
+    required this.onRetry,
+  });
+  final double fraction;
+  final bool hasError;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.secondaryContainer,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Row(
+        children: [
+          Icon(hasError ? Icons.cloud_off_rounded : Icons.download_rounded,
+              size: 18, color: scheme.onSecondaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasError
+                      ? 'Download paused'
+                      : 'Setting up Privoice · ${(fraction * 100).round()}%',
+                  style: TextStyle(
+                      color: scheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13),
+                ),
+                if (!hasError) ...[
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(value: fraction, minHeight: 5),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (hasError)
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
+      ),
     );
   }
 }
