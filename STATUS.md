@@ -1,6 +1,6 @@
 # Privoice — Project Status
 
-**Last updated:** 2026-07-10
+**Last updated:** 2026-07-11
 **Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
 
 **Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ⬜ · R4 home ⬜ · R5 record ⬜ · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
