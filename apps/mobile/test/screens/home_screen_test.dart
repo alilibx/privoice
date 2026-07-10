@@ -17,7 +17,7 @@ Meeting _m(String title, String transcript, DateTime at) => Meeting(
 void main() {
   testWidgets('shows empty state when there are no meetings', (tester) async {
     await tester.pumpWidget(MaterialApp(
-      home: HomeScreen(repository: FakeMeetingRepository(), ai: AiService()),
+      home: HomeScreen(repository: FakeMeetingRepository(), ai: AiService(), themeMode: ValueNotifier(ThemeMode.system)),
     ));
     await tester.pumpAndSettle();
 
@@ -31,7 +31,7 @@ void main() {
       _m('Design review', 'ui discussion', DateTime(2026, 7, 10, 11)),
     ]);
     await tester.pumpWidget(MaterialApp(
-      home: HomeScreen(repository: repo, ai: AiService()),
+      home: HomeScreen(repository: repo, ai: AiService(), themeMode: ValueNotifier(ThemeMode.system)),
     ));
     await tester.pumpAndSettle();
 
@@ -45,7 +45,7 @@ void main() {
       _m('Design review', 'ui discussion', DateTime(2026, 7, 10, 11)),
     ]);
     await tester.pumpWidget(MaterialApp(
-      home: HomeScreen(repository: repo, ai: AiService()),
+      home: HomeScreen(repository: repo, ai: AiService(), themeMode: ValueNotifier(ThemeMode.system)),
     ));
     await tester.pumpAndSettle();
 

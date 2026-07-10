@@ -9,14 +9,17 @@ import 'package:privoice_core/privoice_core.dart';
 import 'ai_model_paths.dart';
 import 'ai_service.dart';
 import 'screens/home_screen.dart';
+import 'screens/model_gate.dart';
+import 'settings.dart';
 import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final repository = await SqfliteMeetingRepository.open();
+  final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);
   await _maybeAiSelfTest();
-  runApp(PrivoiceApp(repository: repository, ai: AiService()));
+  runApp(PrivoiceApp(repository: repository, ai: AiService(), themeMode: themeMode));
 }
 
 /// Debug-only: with a `.seed` sentinel present and no meetings yet, insert one
@@ -96,19 +99,35 @@ Future<void> _maybeAiSelfTest() async {
 }
 
 class PrivoiceApp extends StatelessWidget {
-  const PrivoiceApp({super.key, required this.repository, required this.ai});
+  const PrivoiceApp({
+    super.key,
+    required this.repository,
+    required this.ai,
+    required this.themeMode,
+  });
 
   final MeetingRepository repository;
   final AiService ai;
+  final ValueNotifier<ThemeMode> themeMode;
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Privoice',
-      debugShowCheckedModeBanner: false,
-      theme: PrivoiceTheme.light(),
-      darkTheme: PrivoiceTheme.dark(),
-      home: HomeScreen(repository: repository, ai: ai),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeMode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'Privoice',
+        debugShowCheckedModeBanner: false,
+        theme: PrivoiceTheme.light(),
+        darkTheme: PrivoiceTheme.dark(),
+        themeMode: mode,
+        home: ModelGate(
+          child: HomeScreen(
+            repository: repository,
+            ai: ai,
+            themeMode: themeMode,
+          ),
+        ),
+      ),
     );
   }
 }

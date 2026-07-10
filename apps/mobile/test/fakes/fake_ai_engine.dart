@@ -13,21 +13,32 @@ class FakeAiEngine implements AiEngine {
   final String answer;
 
   @override
+  Future<void> warmUp() async {}
+
+  @override
   Future<String> summarize(
     String transcript, {
     String? userInstructions,
+    void Function(String partial)? onToken,
     void Function(double)? onProgress,
   }) async {
+    onToken?.call(minutes);
     onProgress?.call(1.0);
     return minutes;
   }
 
   @override
-  Future<List<String>> actionItems(String transcript) async => items;
+  Future<List<String>> actionItems(String source) async => items;
 
   @override
-  Future<String> chat(List<ChatMessage> messages, {String? context}) async =>
-      answer;
+  Future<String> chat(
+    List<ChatMessage> messages, {
+    String? context,
+    void Function(String partial)? onToken,
+  }) async {
+    onToken?.call(answer);
+    return answer;
+  }
 
   @override
   Future<void> dispose() async {}

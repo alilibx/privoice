@@ -40,6 +40,7 @@ class _AskSheetState extends State<AskSheet> {
   final _scroll = ScrollController();
   final List<ChatMessage> _messages = [];
   bool _thinking = false;
+  String _streamingReply = '';
 
   Future<void> _send() async {
     final text = _controller.text.trim();
@@ -48,13 +49,22 @@ class _AskSheetState extends State<AskSheet> {
     setState(() {
       _messages.add(ChatMessage.user(text));
       _thinking = true;
+      _streamingReply = '';
     });
     _scrollDown();
-    final reply = await widget.ai.ask(_messages, context: widget.groundingContext);
+    final reply = await widget.ai.ask(
+      _messages,
+      context: widget.groundingContext,
+      onToken: (partial) {
+        if (mounted) setState(() => _streamingReply = partial);
+        _scrollDown();
+      },
+    );
     if (!mounted) return;
     setState(() {
       _messages.add(ChatMessage.assistant(reply ?? '(AI model not installed)'));
       _thinking = false;
+      _streamingReply = '';
     });
     _scrollDown();
   }
@@ -93,7 +103,13 @@ class _AskSheetState extends State<AskSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _messages.length + (_thinking ? 1 : 0),
                   itemBuilder: (_, i) {
-                    if (i == _messages.length) return const _TypingBubble();
+                    if (i == _messages.length) {
+                      return _streamingReply.trim().isEmpty
+                          ? const _TypingBubble()
+                          : _Bubble(
+                              message:
+                                  ChatMessage.assistant(_streamingReply));
+                    }
                     return _Bubble(message: _messages[i]);
                   },
                 ),

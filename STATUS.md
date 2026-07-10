@@ -1,7 +1,9 @@
 # Privoice — Project Status
 
-**Last updated:** 2026-07-10
-**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **Testing: T0 ✅ (29 tests), T2 ✅ (CI green), T3 ✅ (Firebase Test Lab matrix green on real phones), T1 🔨 (privacy zero-network gate ✅; golden tests todo).** Fixed a real record-screen crash found via the smoke test. Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
+**Last updated:** 2026-07-11
+**Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
+
+**Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ⬜ · R4 home ⬜ · R5 record ⬜ · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -19,7 +21,7 @@
 | S3 | On-device LLM: summary / minutes (map-reduce) | ✅ 🧪 | Works on-device (Llama 3.2 1B via fllama). Smart-actions UI shipped. 3B quality tier + quality eval pending (T5) |
 | S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
-| S5 | In-app model download + device tiering | ⬜ | Makes app self-sufficient (no adb push) |
+| S5 | In-app model download | ✅ | Gate + streamed download + **resumable** (HTTP Range) + wakelock; **tar.bz2 extraction verified** on the real 487MB artifact (all 4 files). App reads from app-owned dir. Default 1B; 3B opt-in in Settings. FB Storage mirror **deferred** (org blocks public buckets) → returns as authenticated read in the cloud tier. *Device auto-tiering* still ⬜ (manual toggle for now) |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
 | S7 | Document parsing (PDF / .docx / .md·txt) | ⬜ | Feeds summary + chat context |
 | S8 | Online tier (OpenRouter BYO key + curated list) | ⬜ | Off by default; privacy-gated |

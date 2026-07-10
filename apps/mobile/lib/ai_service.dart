@@ -23,24 +23,32 @@ class AiService {
     return _engine = OnDeviceAiEngine(path);
   }
 
+  /// Pre-load the model so the first real call isn't cold. Fire-and-forget.
+  Future<void> warmUp() async => (await _engineOrNull())?.warmUp();
+
   Future<String?> summarize(
     String transcript, {
+    void Function(String partial)? onToken,
     void Function(double)? onProgress,
   }) async {
     final e = await _engineOrNull();
     if (e == null) return null;
-    return e.summarize(transcript, onProgress: onProgress);
+    return e.summarize(transcript, onToken: onToken, onProgress: onProgress);
   }
 
-  Future<List<String>?> actionItems(String transcript) async {
+  Future<List<String>?> actionItems(String source) async {
     final e = await _engineOrNull();
     if (e == null) return null;
-    return e.actionItems(transcript);
+    return e.actionItems(source);
   }
 
-  Future<String?> ask(List<ChatMessage> messages, {String? context}) async {
+  Future<String?> ask(
+    List<ChatMessage> messages, {
+    String? context,
+    void Function(String partial)? onToken,
+  }) async {
     final e = await _engineOrNull();
     if (e == null) return null;
-    return e.chat(messages, context: context);
+    return e.chat(messages, context: context, onToken: onToken);
   }
 }

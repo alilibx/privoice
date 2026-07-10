@@ -3,15 +3,22 @@ import 'package:privoice_core/privoice_core.dart';
 
 import '../ai_service.dart';
 import 'record_screen.dart';
+import 'settings_screen.dart';
 import 'transcript_screen.dart';
 
 /// Home: searchable list of past meetings + a record button.
 /// Private by default — nothing in the cloud.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository, required this.ai});
+  const HomeScreen({
+    super.key,
+    required this.repository,
+    required this.ai,
+    required this.themeMode,
+  });
 
   final MeetingRepository repository;
   final AiService ai;
+  final ValueNotifier<ThemeMode> themeMode;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -109,9 +116,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (!_searching) _query = '';
             }),
           ),
-          if (!_searching)
+          if (!_searching) ...[
             Padding(
-              padding: const EdgeInsets.only(right: 12, left: 4),
+              padding: const EdgeInsets.only(left: 4),
               child: Row(children: [
                 Icon(Icons.lock_outline, size: 16, color: scheme.primary),
                 const SizedBox(width: 4),
@@ -122,6 +129,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontSize: 13)),
               ]),
             ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => SettingsScreen(themeMode: widget.themeMode)),
+              ),
+            ),
+          ],
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
