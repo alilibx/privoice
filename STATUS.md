@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **T0 done (28 tests), T2 done (CI green on GitHub).** Smoke integration test passes on-device. Next: T3 cloud device matrix (needs FTL project id), then T1 golden + privacy gate. Also fixed a real record-screen crash found via the smoke test.
+**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **Testing: T0 ✅ (29 tests), T2 ✅ (CI green), T3 ✅ (Firebase Test Lab matrix green on real phones), T1 🔨 (privacy zero-network gate ✅; golden tests todo).** Fixed a real record-screen crash found via the smoke test. Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -60,7 +60,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 | T0 | Test foundation: fakes (repo/AI) + unit + widget tests | ✅ | 28 tests: fakes, Meeting serialization, repository CRUD (ffi in-memory), prompts, map_reduce, Home + Transcript widget tests |
 | T1 | Golden tests (light/dark) + **zero-network privacy gate** | 🔨 | **Privacy gate ✅** — `privacy_gate_test.dart` asserts the offline flow creates 0 HTTP clients (Dart layer); OS-level airplane check via device is the complement. Golden tests still ⬜ |
 | T2 | CI pipeline (analyze + tests + debug build) on PRs | ✅ | **Green on GitHub Actions**: analyze + test (10m) and Android debug build incl. fllama/sherpa native (15m) both pass. Tests run sequentially to avoid the native-build race |
-| T3 | Real-device matrix on Firebase Test Lab | 🔨 | `tools/run-test-lab.sh` ready (**Robo crawl** on app APK — sidesteps the fllama+native-assets `assembleAndroidTest` friction). **Smoke integration test passes on emulator** (`app_smoke_test.dart`). Needs FTL project id to run the matrix. Instrumentation-on-FTL = follow-up |
+| T3 | Real-device matrix on Firebase Test Lab | ✅ | **Robo matrix green** on project `privoice-app`: virtual A11 + OnePlus Nord CE 3 Lite (A14) + Galaxy S22 (A16), no crashes/ANRs. `tools/run-test-lab.sh` (pick devices with capacity — oriole/redfin queue at 0). Follow-ups: nightly automation + instrumentation-on-FTL + perf capture |
 | T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
 | T5 | LLM minutes quality eval (rubric + LLM-as-judge) per model tier | ⬜ | |
 | T6 | Perf/thermal/battery harness → **device-tier→model table** (feeds S5) | ⬜ | |

@@ -22,11 +22,15 @@ APK="$APP/build/app/outputs/apk/debug/app-debug.apk"
 [ -f "$APK" ] || { echo "Build first: (cd $APP && flutter build apk --debug)"; exit 1; }
 
 echo "== Robo crawl on Test Lab device matrix (project: $PROJECT) =="
+# Devices chosen for AVAILABLE capacity (check: list-device-capacities).
+# oriole/redfin queue indefinitely when at zero capacity — avoid.
+#   virtual low-API + real budget (our target tier) + real flagship.
 gcloud firebase test android run \
   --project="$PROJECT" \
+  --quiet \
   --type robo \
   --app "$APK" \
   --timeout 4m \
-  --device model=MediumPhone.arm,version=34,locale=en,orientation=portrait \
-  --device model=oriole,version=33,locale=en,orientation=portrait \
-  --device model=redfin,version=30,locale=en,orientation=portrait
+  --device model=MediumPhone.arm,version=30,locale=en,orientation=portrait \
+  --device model=OP5958L1,version=34,locale=en,orientation=portrait \
+  --device model=SCG13,version=36,locale=en,orientation=portrait
