@@ -11,6 +11,7 @@ workspace:
   - packages/audio
   - packages/stt
   - packages/ai
+  - packages/models
 
 dev_dependencies:
   melos: ^8.2.0

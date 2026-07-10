@@ -1,27 +1,19 @@
-import 'dart:io';
-
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+import 'package:privoice_models/privoice_models.dart';
 import 'package:privoice_stt/privoice_stt.dart';
 
-/// Resolves the on-device STT model location for the spike/S2 build.
-///
-/// Currently the flat external files/ root (populated via adb push during dev).
-/// S5 replaces this with a proper first-launch download into an owned dir.
+/// Resolves the on-device STT model from the app-owned models dir (populated by
+/// the S5 downloader). Returns null until it's installed.
 class ModelLocator {
+  static final ModelDownloader _dl = ModelDownloader();
+
   static Future<SttModelPaths?> parakeet() async {
-    final ext = await getExternalStorageDirectory();
-    if (ext == null) return null;
-    final base = ext.path;
-    final paths = SttModelPaths(
-      encoder: p.join(base, 'encoder.int8.onnx'),
-      decoder: p.join(base, 'decoder.int8.onnx'),
-      joiner: p.join(base, 'joiner.int8.onnx'),
-      tokens: p.join(base, 'tokens.txt'),
+    const spec = ModelCatalog.parakeetStt;
+    if (!await _dl.isInstalled(spec)) return null;
+    return SttModelPaths(
+      encoder: await _dl.pathTo(spec, 'encoder.int8.onnx'),
+      decoder: await _dl.pathTo(spec, 'decoder.int8.onnx'),
+      joiner: await _dl.pathTo(spec, 'joiner.int8.onnx'),
+      tokens: await _dl.pathTo(spec, 'tokens.txt'),
     );
-    if (!File(paths.encoder).existsSync() || !File(paths.tokens).existsSync()) {
-      return null;
-    }
-    return paths;
   }
 }

@@ -9,6 +9,7 @@ import 'package:privoice_core/privoice_core.dart';
 import 'ai_model_paths.dart';
 import 'ai_service.dart';
 import 'screens/home_screen.dart';
+import 'screens/model_gate.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -108,7 +109,7 @@ class PrivoiceApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: PrivoiceTheme.light(),
       darkTheme: PrivoiceTheme.dark(),
-      home: HomeScreen(repository: repository, ai: ai),
+      home: ModelGate(child: HomeScreen(repository: repository, ai: ai)),
     );
   }
 }

@@ -19,7 +19,7 @@
 | S3 | On-device LLM: summary / minutes (map-reduce) | ✅ 🧪 | Works on-device (Llama 3.2 1B via fllama). Smart-actions UI shipped. 3B quality tier + quality eval pending (T5) |
 | S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
-| S5 | In-app model download + device tiering | ⬜ | Makes app self-sufficient (no adb push) |
+| S5 | In-app model download + device tiering | 🔨 | `models` pkg (registry, `PlatformPaths`, downloader w/ tar.bz2 extract in isolate) + first-launch download gate built. Default 1B; 3B opt-in via settings. Direct-from-source (GitHub/HF). Verifying on device |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
 | S7 | Document parsing (PDF / .docx / .md·txt) | ⬜ | Feeds summary + chat context |
 | S8 | Online tier (OpenRouter BYO key + curated list) | ⬜ | Off by default; privacy-gated |
