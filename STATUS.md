@@ -29,6 +29,40 @@
 
 ---
 
+## Platforms & new programs (planned)
+
+Privoice is now a **multi-platform suite** from one Flutter codebase + a web/cloud layer.
+
+**Target platforms**
+| Platform | Tech | Capability | Status |
+|---|---|---|---|
+| Android | Flutter | on-device | ✅ working |
+| iOS | Flutter | on-device | ⬜ later |
+| macOS / Windows / Linux | Flutter (same codebase) | on-device | ⬜ new (macOS first) |
+| Web | Next.js + React | online tier only | ⬜ new |
+
+### Desktop (Flutter, offline) — reuses audio/stt/ai packages
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| D0 | Enable desktop platforms + verify sherpa/fllama/record build on macOS | ⬜ | macOS first (buildable here) |
+| D1 | Platform adaptation: `sqflite_common_ffi` on desktop + `PlatformPaths` (model/storage per OS) | ⬜ | Path logic shared with S5 |
+| D2 | Desktop UX pass (window sizing, menus) + Windows/Linux | ⬜ | |
+
+### Online Platform — "Privoice Cloud" (Convex backend + Next.js web + online tier)
+Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) · **Next.js/React** web · **RevenueCat** billing · **OpenRouter** models. Own spec.
+| ID | Item | Status | Notes |
+|----|------|--------|-------|
+| O0 | **Flutter ↔ Convex spike** | ⬜ | De-risk mobile↔Convex (HTTP actions + auth token / `convex_flutter`) before committing |
+| O1 | Convex backend + shared Auth + Next.js web scaffold w/ login | ⬜ | Accounts shared web + mobile |
+| O2 | Subscription + BYOK: RevenueCat + web billing, entitlements in Convex | ⬜ | Sub = our OpenRouter key (metered); BYOK = user key |
+| O3 | Online AI proxy (Convex action → OpenRouter) | ⬜ | Entitlement-gated |
+| O4 | Web: AI chat with documents (upload → parse → RAG → chat) | ⬜ | Node parsing: pdf-parse/mammoth |
+| O5 | Mobile online-tier client (settings toggle, route AI online) | ⬜ | |
+
+**Monorepo goes polyglot:** add `apps/web` (Next.js) + `convex/` (backend) alongside the Flutter app; melos manages Dart, JS uses its own tooling.
+
+---
+
 ## Feature checklist (fine-grained)
 
 **Working ✅**
@@ -93,7 +127,8 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 
 ## Reference docs
 - **Testing & quality strategy: `TESTING.md`**
-- Design spec: `docs/superpowers/specs/2026-07-09-privoice-monorepo-phase1-mvp-design.md`
+- Design spec (on-device MVP): `docs/superpowers/specs/2026-07-09-privoice-monorepo-phase1-mvp-design.md`
+- **Cloud + multi-platform spec: `docs/superpowers/specs/2026-07-10-privoice-cloud-and-multiplatform-design.md`**
 - S0–S1 plan: `docs/superpowers/plans/2026-07-09-privoice-s0-s1-bootstrap-and-stt-spike.md`
 - STT benchmark: `docs/superpowers/benchmarks/2026-07-09-stt-spike-results.md`
 - Toolchain bootstrap: `tools/bootstrap-macos.md`
