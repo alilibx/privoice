@@ -30,3 +30,8 @@ key.properties
 
 # macOS
 .DS_Store
+
+# stray tool logs
+firebase-debug.log
+pglite-debug.log
+*-debug.log
