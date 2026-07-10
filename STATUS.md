@@ -19,7 +19,7 @@
 | S3 | On-device LLM: summary / minutes (map-reduce) | ✅ 🧪 | Works on-device (Llama 3.2 1B via fllama). Smart-actions UI shipped. 3B quality tier + quality eval pending (T5) |
 | S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
-| S5 | In-app model download + device tiering | 🔨 | Gate + real download **verified** (streams from GitHub/HF, file on disk). **Not yet verified:** tar.bz2 extraction → open → transcribe (full chain). **Gap found:** download stalls when app backgrounds — needs foreground service / resumable download. Default 1B; 3B opt-in in Settings |
+| S5 | In-app model download | ✅ | Gate + streamed download + **resumable** (HTTP Range) + wakelock; **tar.bz2 extraction verified** on the real 487MB artifact (all 4 files). App reads from app-owned dir. Default 1B; 3B opt-in in Settings. FB Storage mirror **deferred** (org blocks public buckets) → returns as authenticated read in the cloud tier. *Device auto-tiering* still ⬜ (manual toggle for now) |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
 | S7 | Document parsing (PDF / .docx / .md·txt) | ⬜ | Feeds summary + chat context |
 | S8 | Online tier (OpenRouter BYO key + curated list) | ⬜ | Off by default; privacy-gated |

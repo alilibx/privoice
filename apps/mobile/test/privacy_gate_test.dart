@@ -54,6 +54,7 @@ void main() {
       home: HomeScreen(
         repository: FakeMeetingRepository([meeting]),
         ai: AiService(engine: FakeAiEngine()),
+        themeMode: ValueNotifier(ThemeMode.system),
       ),
     ));
     await tester.pumpAndSettle();

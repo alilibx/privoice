@@ -9,10 +9,16 @@ import 'transcript_screen.dart';
 /// Home: searchable list of past meetings + a record button.
 /// Private by default — nothing in the cloud.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.repository, required this.ai});
+  const HomeScreen({
+    super.key,
+    required this.repository,
+    required this.ai,
+    required this.themeMode,
+  });
 
   final MeetingRepository repository;
   final AiService ai;
+  final ValueNotifier<ThemeMode> themeMode;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -126,7 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
             IconButton(
               icon: const Icon(Icons.settings_outlined),
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                MaterialPageRoute(
+                    builder: (_) => SettingsScreen(themeMode: widget.themeMode)),
               ),
             ),
           ],

@@ -4,9 +4,11 @@ import 'package:privoice_models/privoice_models.dart';
 import '../settings.dart';
 import 'model_download_screen.dart';
 
-/// Settings: model management (fast vs higher-quality AI) + privacy info.
+/// Settings: appearance (theme), model management, privacy.
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, required this.themeMode});
+
+  final ValueNotifier<ThemeMode> themeMode;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -87,6 +89,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               children: [
+                _sectionHeader('Appearance', scheme),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: ValueListenableBuilder<ThemeMode>(
+                    valueListenable: widget.themeMode,
+                    builder: (context, mode, _) => SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                            value: ThemeMode.system,
+                            label: Text('System'),
+                            icon: Icon(Icons.brightness_auto_outlined)),
+                        ButtonSegment(
+                            value: ThemeMode.light,
+                            label: Text('Light'),
+                            icon: Icon(Icons.light_mode_outlined)),
+                        ButtonSegment(
+                            value: ThemeMode.dark,
+                            label: Text('Dark'),
+                            icon: Icon(Icons.dark_mode_outlined)),
+                      ],
+                      selected: {mode},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) async {
+                        widget.themeMode.value = s.first;
+                        await SettingsService.setThemeMode(s.first);
+                      },
+                    ),
+                  ),
+                ),
+                const Divider(),
                 _sectionHeader('AI model', scheme),
                 SwitchListTile(
                   value: _useLarge,
