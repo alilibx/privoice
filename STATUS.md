@@ -1,7 +1,7 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-10
-**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **Test foundation (T0) done — 28 passing tests** (unit + widget + repository); CI workflow written (T2). Next: golden + privacy gate (T1), then cloud device matrix (T3).
+**Now:** Record → transcribe → summarize works on-device (STT RTF 0.44; Llama 3.2 1B minutes in 6.1s). Smart-actions UI + animations shipped. **T0 done (28 tests), T2 done (CI green on GitHub).** Smoke integration test passes on-device. Next: T3 cloud device matrix (needs FTL project id), then T1 golden + privacy gate. Also fixed a real record-screen crash found via the smoke test.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -59,7 +59,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 |----|------|--------|-------|
 | T0 | Test foundation: fakes (repo/AI) + unit + widget tests | ✅ | 28 tests: fakes, Meeting serialization, repository CRUD (ffi in-memory), prompts, map_reduce, Home + Transcript widget tests |
 | T1 | Golden tests (light/dark) + summarize integration test + **airplane-mode privacy gate** | ⬜ | Zero-network assertion is a hard gate |
-| T2 | CI pipeline (analyze + tests + debug build) on PRs | 🔨 | Runs on GitHub. Android native build ✅ passes on CI. Fixed test job: run sequentially (parallel native-asset builds raced). Re-verifying |
+| T2 | CI pipeline (analyze + tests + debug build) on PRs | ✅ | **Green on GitHub Actions**: analyze + test (10m) and Android debug build incl. fllama/sherpa native (15m) both pass. Tests run sequentially to avoid the native-build race |
 | T3 | Real-device matrix on Firebase Test Lab | 🔨 | `tools/run-test-lab.sh` ready (**Robo crawl** on app APK — sidesteps the fllama+native-assets `assembleAndroidTest` friction). **Smoke integration test passes on emulator** (`app_smoke_test.dart`). Needs FTL project id to run the matrix. Instrumentation-on-FTL = follow-up |
 | T4 | STT WER harness + real-meeting corpus (accents, crosstalk, far mic, Arabic) | ⬜ | |
 | T5 | LLM minutes quality eval (rubric + LLM-as-judge) per model tier | ⬜ | |
