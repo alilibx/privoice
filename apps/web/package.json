@@ -15,9 +15,9 @@
     "@convex-dev/auth": "^0.0.94",
     "convex": "^1.42.1",
     "mammoth": "^1.12.0",
-    "pdf-parse": "^2.4.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "unpdf": "^1.6.2",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

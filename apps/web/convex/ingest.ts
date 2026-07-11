@@ -6,22 +6,18 @@ import { chunkText } from "./lib/chunk";
 import { embedChunks } from "./lib/embed";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
-// pdf-parse ^2.x is a full rewrite of the old (`pdf(buf) => {text}`) v1 API:
-// it now exports a `PDFParse` class with an async `getText()` method. The
-// installed version (see apps/web/package.json) does not have a default
-// function export, so we use its real class-based API instead of the
-// brief's literal `import pdf from "pdf-parse"` snippet.
-import { PDFParse } from "pdf-parse";
+// PDF text extraction via `unpdf` — a serverless build of pdf.js with NO
+// canvas/DOM dependency (pdf-parse@2 / raw pdf.js reference DOMMatrix at load
+// time, which the Convex Node runtime can't provide → deploy fails). unpdf's
+// text path works across Node/edge/serverless.
+import { extractText as extractPdfText, getDocumentProxy } from "unpdf";
 
 async function extractText(kind: string, buf: Buffer): Promise<string> {
   switch (kind) {
     case "pdf": {
-      const parser = new PDFParse({ data: buf });
-      try {
-        return (await parser.getText()).text;
-      } finally {
-        await parser.destroy();
-      }
+      const pdf = await getDocumentProxy(new Uint8Array(buf));
+      const { text } = await extractPdfText(pdf, { mergePages: true });
+      return text;
     }
     case "docx":
       return (await mammoth.extractRawText({ buffer: buf })).value;
