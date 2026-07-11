@@ -53,7 +53,25 @@ dart run bin/smoke.dart https://colorless-mammoth-659.convex.site
 
 These land as a throwaway Flutter target once the HTTP path is confirmed.
 
-## Findings
+## Findings (2026-07-12) — **GO**
 
-_(to fill in after running: which client won — `convex_flutter` vs raw HTTP —
-auth notes, file-storage notes, and the Go/No-Go recommendation for O1.)_
+- **HTTP-action transport from Dart: ✅ proven headlessly.** `dart run bin/smoke.dart
+  https://colorless-mammoth-659.convex.site` → `✅ GET /ping (200)`, `✅ POST /echo (200, len=15)`.
+  So the plain-HTTP fallback path works from Dart with zero native deps.
+- **`convex_flutter` viability: ✅ confirmed by evaluation** (not yet run on device).
+  v3.0.1, verified publisher (jkuldev.com), supports **Android/iOS/web/desktop**;
+  Rust FFI on native, pure Dart on web. API: `ConvexClient.initialize(ConvexConfig(deploymentUrl, clientId))`,
+  `client.subscribe(name:'file:fn', args, onUpdate)`, `client.mutation(name, args)`,
+  `client.setAuth(token)` / `setAuthWithRefresh(fetchToken)`. It's a **community** package
+  (not first-party Convex) — acceptable, but pin the version and keep the HTTP-action
+  fallback in mind.
+- **Key reframing for the web-first plan:** the **web app is Next.js/React**, which uses
+  **Convex's official `convex/react` client** — mature, first-party, essentially zero
+  integration risk. `convex_flutter` only matters for the **mobile online tier (O5)** and
+  desktop. So the Flutter↔Convex risk is **off the web critical path**.
+
+### Go/No-Go for O1: **GO**
+Proceed to O1 (Convex backend + shared auth + Next.js web scaffold) using the official
+React client. **Deferred (folded into O5, mobile online tier):** a throwaway on-device
+`convex_flutter` run proving native lib load + WebSocket connect + auth token + file
+upload on a real Android build. Not blocking the web work.
