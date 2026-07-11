@@ -284,7 +284,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                 style: Theme.of(context).textTheme.titleSmall),
           ]),
           const SizedBox(height: 12),
-          _ActionChips(items: _meeting.actionItems.map((a) => a.text).toList()),
+          _ActionList(items: _meeting.actionItems, onToggle: _toggleItem),
           const SizedBox(height: 24),
         ],
         if (_hasMinutes)
@@ -312,6 +312,13 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   Future<void> _regenerate() async {
     _meeting = _meeting.copyWith(minutes: '');
     await _generateOverview();
+  }
+
+  Future<void> _toggleItem(int index, bool done) async {
+    final items = List<ActionItem>.of(_meeting.actionItems);
+    items[index] = items[index].copyWith(done: done);
+    setState(() => _meeting = _meeting.copyWith(actionItems: items));
+    await widget.repository.update(_meeting);
   }
 }
 
@@ -352,53 +359,80 @@ class _AskBar extends StatelessWidget {
   }
 }
 
-/// Staggered scale/fade-in chips.
-class _ActionChips extends StatelessWidget {
-  const _ActionChips({required this.items});
-  final List<String> items;
+/// Checkable action-item list. Completed items sink to the bottom and strike
+/// through; the initial reveal is staggered.
+class _ActionList extends StatelessWidget {
+  const _ActionList({required this.items, required this.onToggle});
+  final List<ActionItem> items;
+  final Future<void> Function(int index, bool done) onToggle;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    // Preserve original indices (onToggle needs them) while showing
+    // undone-first, done-last.
+    final order = List<int>.generate(items.length, (i) => i)
+      ..sort((a, b) {
+        if (items[a].done == items[b].done) return a.compareTo(b);
+        return items[a].done ? 1 : -1;
+      });
+
+    return Column(
       children: [
-        for (var i = 0; i < items.length; i++)
-          TweenAnimationBuilder<double>(
-            // Index-prefixed: the LLM can emit identical action items, and a
-            // bare ValueKey(text) would collide (duplicate-key crash).
-            key: ValueKey('$i:${items[i]}'),
-            tween: Tween(begin: 0, end: 1),
-            duration: Duration(milliseconds: 260 + i * 70),
-            curve: Curves.easeOutBack,
-            builder: (_, t, child) => Opacity(
-              opacity: t.clamp(0, 1),
-              child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.task_alt,
-                      size: 15, color: scheme.onPrimaryContainer),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.7),
-                    child: Text(items[i],
-                        style: TextStyle(color: scheme.onPrimaryContainer)),
+        for (var pos = 0; pos < order.length; pos++)
+          _AnimatedIn(
+            delayMs: 40 * pos,
+            key: ValueKey('item-${order[pos]}'),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => onToggle(order[pos], !items[order[pos]].done),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Checkbox(
+                    value: items[order[pos]].done,
+                    onChanged: (v) => onToggle(order[pos], v ?? false),
                   ),
-                ],
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      items[order[pos]].text,
+                      style: TextStyle(
+                        color: items[order[pos]].done
+                            ? scheme.onSurfaceVariant
+                            : scheme.onSurface,
+                        decoration: items[order[pos]].done
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                  ),
+                ]),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Staggered fade/slide-in wrapper (no controller — safe under pumpAndSettle).
+class _AnimatedIn extends StatelessWidget {
+  const _AnimatedIn({super.key, required this.child, this.delayMs = 0});
+  final Widget child;
+  final int delayMs;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 220 + delayMs),
+      curve: Curves.easeOut,
+      builder: (_, t, c) => Opacity(
+        opacity: t.clamp(0, 1),
+        child: Transform.translate(offset: Offset(0, (1 - t) * 8), child: c),
+      ),
+      child: child,
     );
   }
 }

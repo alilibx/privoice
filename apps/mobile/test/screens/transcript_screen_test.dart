@@ -199,6 +199,24 @@ void main() {
     );
     expect(find.textContaining('Preparing on-device AI'), findsOneWidget);
   });
+
+  testWidgets('checking an action item persists done and survives rebuild',
+      (tester) async {
+    final m = _meeting(
+      minutes: '### Summary\nx',
+      items: const [ActionItem(text: 'Ship it'), ActionItem(text: 'Email Bob')],
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+
+    // Tick the first item.
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+
+    final saved = await repo.byId(1);
+    final shipIt = saved!.actionItems.firstWhere((a) => a.text == 'Ship it');
+    expect(shipIt.done, isTrue);
+  });
 }
 
 class _CountingAiEngine extends FakeAiEngine {
