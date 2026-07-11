@@ -7,7 +7,7 @@ String cleanTitle(String raw, {int maxWords = 8}) {
   s = s.split('\n').first.trim();
   s = s.replaceFirst(RegExp(r'^title\s*[:\-]\s*', caseSensitive: false), '');
   s = s.replaceAll(RegExp(r'''^["'“”‘’]+|["'“”‘’]+$'''), '').trim();
-  s = s.replaceFirst(RegExp(r'[.\s]+$'), '').trim();
+  s = s.replaceFirst(RegExp(r'[.!?,;:\s]+$'), '').trim();
   final words = s.split(RegExp(r'\s+'));
   if (words.length > maxWords) s = words.take(maxWords).join(' ');
   return s;

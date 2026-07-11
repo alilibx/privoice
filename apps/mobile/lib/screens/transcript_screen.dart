@@ -137,26 +137,15 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   }
 
   Future<void> _rename() async {
-    final controller = TextEditingController(text: _meeting.title);
+    // The dialog owns its TextEditingController (see _RenameDialog) so it is
+    // disposed exactly when the dialog's widget is actually removed from the
+    // tree — i.e. after the pop/exit animation finishes. Disposing a
+    // controller manually right after `await showDialog` returns is too
+    // early: the dialog is still rendering its closing transition and would
+    // hit "TextEditingController used after being disposed".
     final result = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename meeting'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(hintText: 'Meeting title'),
-          onSubmitted: (v) => Navigator.pop(context, v),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, controller.text),
-              child: const Text('Save')),
-        ],
-      ),
+      builder: (context) => _RenameDialog(initialTitle: _meeting.title),
     );
     final name = result?.trim();
     if (name == null || name.isEmpty) return;
@@ -217,8 +206,12 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       // 1) Minutes (streamed).
       final minutes = await widget.ai.summarize(
         _transcript,
-        onToken: (partial) => setState(() => _streaming = partial),
-        onProgress: (p) => setState(() => _progress = p),
+        onToken: (partial) {
+          if (mounted) setState(() => _streaming = partial);
+        },
+        onProgress: (p) {
+          if (mounted) setState(() => _progress = p);
+        },
       );
       if (!mounted) return;
       if (minutes == null) {
@@ -368,6 +361,48 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     items[index] = items[index].copyWith(done: done);
     setState(() => _meeting = _meeting.copyWith(actionItems: items));
     await widget.repository.update(_meeting);
+  }
+}
+
+/// Rename dialog content. Owns its [TextEditingController] so it is disposed
+/// by the framework when this widget is actually unmounted (after the
+/// dialog's exit animation), not by the caller right after the route pops.
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.initialTitle});
+  final String initialTitle;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _controller = TextEditingController(text: widget.initialTitle);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Rename meeting'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(hintText: 'Meeting title'),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, _controller.text),
+            child: const Text('Save')),
+      ],
+    );
   }
 }
 

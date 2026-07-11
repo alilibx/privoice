@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/ai_service.dart';
@@ -247,6 +249,80 @@ void main() {
     expect(find.text('Renamed Meeting'), findsOneWidget);
     expect((await repo.byId(1))?.title, 'Renamed Meeting');
   });
+
+  testWidgets('tapping Cancel in the rename dialog keeps the original title',
+      (tester) async {
+    final m = _meeting(minutes: '### Summary\nx');
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+
+    await tester.tap(find.text('Meeting 10/7 09:00'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Should Not Save');
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Meeting 10/7 09:00'), findsOneWidget);
+    expect((await repo.byId(1))?.title, 'Meeting 10/7 09:00');
+  });
+
+  testWidgets(
+      'streaming callbacks after the screen is disposed do not throw',
+      (tester) async {
+    final m = _meeting(); // no minutes -> auto-generate kicks in
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CompleterAiEngine();
+    await tester.pumpWidget(MaterialApp(
+      home: TranscriptScreen(
+        meeting: m,
+        repository: repo,
+        ai: AiService(engine: engine),
+        modelManager: _ready(),
+      ),
+    ));
+    // Let the post-frame auto-generate callback fire and call
+    // engine.summarize, which captures onToken/onProgress and then hangs
+    // (via the uncompleted Completer) so generation is still "in flight".
+    await tester.pump();
+    await tester.pump();
+    expect(engine.capturedOnToken, isNotNull);
+    expect(engine.capturedOnProgress, isNotNull);
+
+    // Navigate away, disposing the TranscriptScreen's State while the
+    // summarize() future is still pending.
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+
+    // Simulate late tokens/progress arriving from the still-running
+    // on-device generation after disposal. Without the `mounted` guard in
+    // transcript_screen.dart's _generateOverview, these would call setState
+    // on a disposed State and throw.
+    engine.capturedOnToken!('late token after dispose');
+    engine.capturedOnProgress!(0.5);
+
+    expect(tester.takeException(), isNull);
+  });
+}
+
+/// [FakeAiEngine.summarize] that captures the streaming callbacks and never
+/// resolves on its own, so a test can dispose the caller mid-generation and
+/// then invoke the callbacks manually to check for the `mounted` guard.
+class _CompleterAiEngine extends FakeAiEngine {
+  void Function(String)? capturedOnToken;
+  void Function(double)? capturedOnProgress;
+  final _summarizeCompleter = Completer<String>();
+
+  @override
+  Future<String> summarize(
+    String transcript, {
+    String? userInstructions,
+    void Function(String partial)? onToken,
+    void Function(double)? onProgress,
+  }) {
+    capturedOnToken = onToken;
+    capturedOnProgress = onProgress;
+    return _summarizeCompleter.future;
+  }
 }
 
 class _CountingAiEngine extends FakeAiEngine {

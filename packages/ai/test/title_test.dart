@@ -22,4 +22,10 @@ void main() {
   test('blank stays blank', () {
     expect(cleanTitle('   '), '');
   });
+
+  test('strips trailing exclamation and other punctuation', () {
+    expect(cleanTitle('Q3 Planning!'), 'Q3 Planning');
+    expect(cleanTitle('Hiring Sync?'), 'Hiring Sync');
+    expect(cleanTitle('Beta Launch,'), 'Beta Launch');
+  });
 }
