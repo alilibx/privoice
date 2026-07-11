@@ -62,6 +62,24 @@ void main() {
     expect(find.text('Ask about this meeting…'), findsOneWidget);
   });
 
+  testWidgets('Ask entry reacts to model becoming ready without a rebuild',
+      (tester) async {
+    final m = _meeting(minutes: '### Summary\nx');
+    final manager = ModelManager(downloader: FakeModelDownloader());
+    await _pump(tester, meeting: m, repo: FakeMeetingRepository([m]), manager: manager);
+
+    InkWell askInkWell() => tester.widget<InkWell>(find.ancestor(
+        of: find.text('Ask about this meeting…'),
+        matching: find.byType(InkWell)));
+
+    expect(askInkWell().onTap, isNull);
+
+    manager.markAllReadyForTest();
+    await tester.pump();
+
+    expect(askInkWell().onTap, isNotNull);
+  });
+
   testWidgets('overflow menu offers share options and a disabled Export',
       (tester) async {
     final m = _meeting(minutes: '### Summary\nx');

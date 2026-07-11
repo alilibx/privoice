@@ -93,12 +93,12 @@ class _TranscriptScreenState extends State<TranscriptScreen>
           tabs: const [Tab(text: 'Overview'), Tab(text: 'Transcript')],
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListenableBuilder(
-              listenable: _manager,
-              builder: (context, _) => TabBarView(
+      body: ListenableBuilder(
+        listenable: _manager,
+        builder: (context, _) => Column(
+          children: [
+            Expanded(
+              child: TabBarView(
                 controller: _tabs,
                 children: [
                   _overviewTab(scheme),
@@ -106,9 +106,9 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                 ],
               ),
             ),
-          ),
-          _AskBar(enabled: _manager.llmReady && !_busy, onTap: _ask),
-        ],
+            _AskBar(enabled: _manager.llmReady && !_busy, onTap: _ask),
+          ],
+        ),
       ),
     );
   }
