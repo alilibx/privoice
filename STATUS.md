@@ -1,9 +1,9 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-11
-**Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **R3 onboarding + staged/background download done + on-device verified (Redmi):** first-launch 3-screen intro, then the app opens while STT+LLM download in the background via `ModelManager`; Record unlocks on STT, AI actions on LLM; `ModelGate` retired. On-device fix: a screen wakelock is held during download (screen-lock was suspending the process and stalling it). Full 1.5 GB download completed on device with the screen awake; staged unlock confirmed. **R4 Home reimagined (code-complete):** library-first grouped list (Today/This week/Earlier) with status dots + a persistent bottom record dock; on-device walkthrough pending. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
+**Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **R3 onboarding + staged/background download done + on-device verified (Redmi):** first-launch 3-screen intro, then the app opens while STT+LLM download in the background via `ModelManager`; Record unlocks on STT, AI actions on LLM; `ModelGate` retired. On-device fix: a screen wakelock is held during download (screen-lock was suspending the process and stalling it). Full 1.5 GB download completed on device with the screen awake; staged unlock confirmed. **R4 Home reimagined (code-complete):** library-first grouped list (Today/This week/Earlier) with status dots + a persistent bottom record dock; on-device walkthrough pending. **R5 Record reimagined (code-complete):** calm-teal record screen with a live scrolling waveform driven by mic amplitude; on-device walkthrough pending. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
 
-**Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ✅ *(on-device verified, Redmi)* — 3-screen intro + in-process background download (`ModelManager`) with a **wakelock held during download** (screen-lock was stalling it), per-model feature gating (Record↔STT, AI↔LLM), `ModelGate` retired · R4 home ✅ *(code-complete; on-device pending)* — library-first Home: grouped meeting list (Today/This week/Earlier) with status dots + persistent bottom record dock (waveform + docked mic, R3 gating integrated); FAB + toggle-search retired · R5 record ⬜ · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: R5 record; **open follow-up — foreground-service downloader** (survive app-background/screen-off/swipe-away, needs a notification + `POST_NOTIFICATIONS`); T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
+**Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ✅ *(on-device verified, Redmi)* — 3-screen intro + in-process background download (`ModelManager`) with a **wakelock held during download** (screen-lock was stalling it), per-model feature gating (Record↔STT, AI↔LLM), `ModelGate` retired · R4 home ✅ *(code-complete; on-device pending)* — library-first Home: grouped meeting list (Today/This week/Earlier) with status dots + persistent bottom record dock (waveform + docked mic, R3 gating integrated); FAB + toggle-search retired · R5 record ✅ *(code-complete; on-device pending)* — calm-teal Record screen + live scrolling waveform (mic amplitude via `AudioRecorderHandle.levels()`), injectable recorder for tests · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: R6 minutes; **open follow-up — foreground-service downloader** (survive app-background/screen-off/swipe-away, needs a notification + `POST_NOTIFICATIONS`); T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -69,6 +69,7 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) ·
 
 **Working ✅**
 - Record 16 kHz mono WAV · On-device STT (Parakeet) · Background-isolate transcription
+- **Live recording waveform** (mic-amplitude level meter, scrolling)
 - SQLite persistence · Home / Record / Transcript screens
 - **Summarize → minutes (LLM) · Map-reduce · Action items · Ask (chat grounded in meeting)**
 - **Animations:** record pulse rings · staggered list entrance · minutes reveal · action-chip stagger · typing indicator
@@ -83,7 +84,7 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) ·
 - Document parse: PDF · DOCX · MD/TXT
 - Tier-selectable AI engine (on-device default + online BYO) · Online STT provider
 - Settings screen · Audio playback · Rename meeting
-- Recording pause/resume · live audio level meter
+- Recording pause/resume
 
 ---
 

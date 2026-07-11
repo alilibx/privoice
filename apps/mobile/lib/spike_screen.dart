@@ -127,8 +127,7 @@ class _SpikeScreenState extends State<SpikeScreen> {
         setState(() => _status = 'Microphone permission denied');
         return;
       }
-      final dir = await getApplicationDocumentsDirectory();
-      await _recorder.start(dir.path);
+      await _recorder.start();
       setState(() {
         _recording = true;
         _status = 'Recording…';
