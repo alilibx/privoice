@@ -1,7 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:privoice_models/privoice_models.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 enum ModelPhase { notInstalled, downloading, extracting, ready, error }
+
+/// Toggles a screen wakelock. Injected so tests can observe it without the
+/// platform plugin.
+typedef WakelockToggle = Future<void> Function(bool enable);
+
+Future<void> _defaultWakelock(bool enable) =>
+    enable ? WakelockPlus.enable() : WakelockPlus.disable();
 
 /// Immutable per-model status.
 class ModelState {
@@ -15,13 +23,15 @@ class ModelState {
 /// per-model progress. Never self-starts: downloading begins only when
 /// [ensureDefaultSet] is called (privacy: offline flows stay network-free).
 class ModelManager extends ChangeNotifier {
-  ModelManager({ModelDownloader? downloader})
-      : _dl = downloader ?? ModelDownloader();
+  ModelManager({ModelDownloader? downloader, WakelockToggle? wakelock})
+      : _dl = downloader ?? ModelDownloader(),
+        _wakelock = wakelock ?? _defaultWakelock;
 
   /// App-wide instance used by the running app.
   static final ModelManager instance = ModelManager();
 
   final ModelDownloader _dl;
+  final WakelockToggle _wakelock;
   final Map<String, ModelState> _states = {};
   bool _running = false;
 
@@ -48,15 +58,26 @@ class ModelManager extends ChangeNotifier {
 
   /// Download/resume every not-yet-installed default model, STT first.
   /// Idempotent and safe to call repeatedly; a call while running is a no-op.
+  ///
+  /// Holds a screen wakelock while a download is in flight so the OS doesn't
+  /// suspend the process (and drop the socket) when the screen would lock —
+  /// the in-process download only survives while the app stays awake. The
+  /// wakelock is acquired lazily (only if something actually needs
+  /// downloading) and always released in the `finally`.
   Future<void> ensureDefaultSet() async {
     if (_running) return;
     _running = true;
+    var wakelockHeld = false;
     try {
       for (final spec in ModelCatalog.defaultSet) {
         try {
           if (await _dl.isInstalled(spec)) {
             _set(spec, const ModelState(ModelPhase.ready, fraction: 1));
             continue;
+          }
+          if (!wakelockHeld) {
+            wakelockHeld = true;
+            await _toggleWakelock(true);
           }
           await _dl.install(spec, (p) {
             final phase = p.phase == 'Extracting…'
@@ -71,7 +92,18 @@ class ModelManager extends ChangeNotifier {
         }
       }
     } finally {
+      if (wakelockHeld) await _toggleWakelock(false);
       _running = false;
+    }
+  }
+
+  /// Best-effort wakelock toggle: a failure (unsupported platform, missing
+  /// plugin, permission) must never abort or fail a download.
+  Future<void> _toggleWakelock(bool enable) async {
+    try {
+      await _wakelock(enable);
+    } catch (_) {
+      // ignore — the wakelock is a nicety, not a requirement
     }
   }
 

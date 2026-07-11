@@ -65,4 +65,35 @@ void main() {
     expect(m.allReady, isTrue);
     expect(fake.installCalls, isEmpty);
   });
+
+  test('holds a wakelock only while actually downloading', () async {
+    final calls = <bool>[];
+    final m = ModelManager(
+      downloader: FakeModelDownloader(),
+      wakelock: (on) async => calls.add(on),
+    );
+    await m.ensureDefaultSet();
+    // Enabled once when the first download starts, disabled once at the end.
+    expect(calls, [true, false]);
+  });
+
+  test('never acquires the wakelock when nothing needs downloading', () async {
+    final calls = <bool>[];
+    final m = ModelManager(
+      downloader: FakeModelDownloader(installed: {stt.id, llm.id}),
+      wakelock: (on) async => calls.add(on),
+    );
+    await m.ensureDefaultSet();
+    expect(calls, isEmpty);
+  });
+
+  test('releases the wakelock even when a download fails', () async {
+    final calls = <bool>[];
+    final m = ModelManager(
+      downloader: FakeModelDownloader(failIds: {llm.id}),
+      wakelock: (on) async => calls.add(on),
+    );
+    await m.ensureDefaultSet();
+    expect(calls, [true, false]); // acquired for STT, released in finally
+  });
 }
