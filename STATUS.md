@@ -1,9 +1,17 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-11
-**Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **R3 onboarding + staged/background download done + on-device verified (Redmi):** first-launch 3-screen intro, then the app opens while STT+LLM download in the background via `ModelManager`; Record unlocks on STT, AI actions on LLM; `ModelGate` retired. On-device fix: a screen wakelock is held during download (screen-lock was suspending the process and stalling it). Full 1.5 GB download completed on device with the screen awake; staged unlock confirmed. **R4 Home reimagined (code-complete):** library-first grouped list (Today/This week/Earlier) with status dots + a persistent bottom record dock; on-device walkthrough pending. **R5 Record reimagined (code-complete):** calm-teal record screen with a live scrolling waveform driven by mic amplitude; on-device walkthrough pending. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
+**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R5 done; **reliable model download shipped + on-device verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home (grouped list + bottom record dock) ✅ · **R5** Record screen + live scrolling waveform ✅. **Model download reliability (verified on device):** STT downloads as 4 pre-extracted files from HF (no in-app tar.bz2 extraction — killed the ~6-min/48% stall), runs in a `background_downloader` foreground service, resumes across backgrounding/screen-off/swipe-away. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next: R6 (Minutes/transcript redesign).**
 
-**Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ✅ *(on-device verified, Redmi)* — 3-screen intro + in-process background download (`ModelManager`) with a **wakelock held during download** (screen-lock was stalling it), per-model feature gating (Record↔STT, AI↔LLM), `ModelGate` retired · R4 home ✅ *(code-complete; on-device pending)* — library-first Home: grouped meeting list (Today/This week/Earlier) with status dots + persistent bottom record dock (waveform + docked mic, R3 gating integrated); FAB + toggle-search retired · R5 record ✅ *(code-complete; on-device pending)* — calm-teal Record screen + live scrolling waveform (mic amplitude via `AudioRecorderHandle.levels()`), injectable recorder for tests · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: R6 minutes; **open follow-up — foreground-service downloader** (survive app-background/screen-off/swipe-away, needs a notification + `POST_NOTIFICATIONS`); T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
+**Redesign (R1–R7):** R1 tokens+theme ✅ *(verified)* · R2 perceived-perf ✅ *(verified)* · R3 onboarding + background download ✅ *(verified, Redmi)* · R4 library-first Home ✅ *(verified — grouped list Today/This week/Earlier + status dots + persistent bottom record dock; FAB/toggle-search retired)* · R5 Record + live waveform ✅ *(verified — mic-amplitude scrolling waveform, `AudioRecorderHandle.levels()`)* · **R6 minutes/transcript ⬜ (next)** · R7 empty/error states + delight ⬜.
+
+## ▶ What's next (priority order)
+
+1. **R6 — Minutes / transcript screen redesign** *(next up)* — bring the transcript + minutes view into the calm-teal language: reading layout, smart-action bar, action-item chips, share/copy, the "Ask" entry. Redesign-track slice: brainstorm → spec → plan → build → on-device.
+2. **R7 — empty/error states + delight** — final redesign polish pass across screens.
+3. **S4 — Export (PDF + Word .docx)** — real functional gap; export minutes/transcript.
+4. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/Arabic) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
+5. **Deferred / opt-in follow-ups** — a focused resume-hardening on-device pass (pause+kill recovery of the new downloader); own-bucket mirror for the 4 STT files to drop the HF dependency; golden tests + nightly Test Lab; S6 standalone chat panel; S7 document parsing; S8 online tier (Privoice Cloud — Convex/Next.js, see cloud spec).
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -21,7 +29,7 @@
 | S3 | On-device LLM: summary / minutes (map-reduce) | ✅ 🧪 | Works on-device (Llama 3.2 1B via fllama). Smart-actions UI shipped. 3B quality tier + quality eval pending (T5) |
 | S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
-| S5 | In-app model download | ✅ | Gate + streamed download + **resumable** (HTTP Range) + wakelock; **tar.bz2 extraction verified** on the real 487MB artifact (all 4 files). App reads from app-owned dir. Default 1B; 3B opt-in in Settings. FB Storage mirror **deferred** (org blocks public buckets) → returns as authenticated read in the cloud tier. *Device auto-tiering* still ⬜ (manual toggle for now) |
+| S5 | In-app model download | ✅ *(reworked, verified)* | Foreground-service download (`background_downloader`) — resumes across backgrounding/screen-off/swipe-away. **STT now downloads as 4 pre-extracted files from HF** (no in-app tar.bz2 extraction — removed the ~6-min/48% on-device stall). Default 1B; 3B opt-in in Settings. App reads from app-owned dir. *Device auto-tiering* still ⬜ (manual toggle for now). Own-bucket mirror for the STT files = optional follow-up (drops HF reliance) |
 | S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
 | S7 | Document parsing (PDF / .docx / .md·txt) | ⬜ | Feeds summary + chat context |
 | S8 | Online tier (OpenRouter BYO key + curated list) | ⬜ | Off by default; privacy-gated |
@@ -74,11 +82,12 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) ·
 - **Summarize → minutes (LLM) · Map-reduce · Action items · Ask (chat grounded in meeting)**
 - **Animations:** record pulse rings · staggered list entrance · minutes reveal · action-chip stagger · typing indicator
 - Search meetings · Swipe-to-delete + undo · Share (minutes/transcript) · Copy
-- Calm & trustworthy Material 3 theme · "On-device" privacy badge
+- Elevated calm-teal Material 3 theme (light/dark/system) · "On-device" privacy badge
+- **In-app model download** (foreground service, resumable, no extraction) · first-launch onboarding · Settings (1B/3B toggle) · library-first Home · Record screen w/ live waveform
 
 **Todo ⬜**
 - Custom minutes templates · Export PDF · Export Word (.docx)
-- In-app model download · Device tiering (auto model select) · "Go higher" toggle + warning
+- Device tiering (auto model select) · "Go higher" toggle + warning
 - Speaker diarization
 - Standalone chat panel (beyond per-meeting Ask) · Chat over documents
 - Document parse: PDF · DOCX · MD/TXT
