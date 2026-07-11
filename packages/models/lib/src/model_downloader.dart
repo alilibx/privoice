@@ -23,6 +23,11 @@ class ModelInstallProgress {
 }
 
 class ModelDownloader {
+  /// FileDownloader().updates is single-subscription; wrap it once as a
+  /// broadcast stream so every download (and concurrent installs) can listen.
+  static final Stream<TaskUpdate> _updates =
+      FileDownloader().updates.asBroadcastStream();
+
   /// True when every expected file for [spec] is present on disk.
   Future<bool> isInstalled(ModelSpec spec) async {
     final dir = await PlatformPaths.subdir(spec.subdir);
@@ -121,7 +126,7 @@ class ModelDownloader {
       allowPause: true,
     );
     final done = Completer<void>();
-    final sub = FileDownloader().updates.listen((update) {
+    final sub = _updates.listen((update) {
       if (update.task.taskId != taskId) return;
       if (update is TaskProgressUpdate) {
         if (update.progress >= 0) onFileProgress(update.progress);
