@@ -89,4 +89,62 @@ void main() {
     expect((await repo.byId(saved.id!))?.actionItems,
         const [ActionItem(text: 'x')]);
   });
+
+  test('v2->v3 migrates legacy newline action_items to JSON items', () async {
+    final db = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 2,
+        onCreate: SqfliteMeetingRepository.onCreate,
+        singleInstance: false,
+      ),
+    );
+    // Seed a legacy row exactly as a v2 build would have written it.
+    await db.insert('meetings', {
+      'title': 'Legacy',
+      'created_at': 0,
+      'audio_path': '/a.wav',
+      'duration_ms': 0,
+      'transcript': 't',
+      'action_items': 'do a\ndo b',
+      'status': 'done',
+    });
+
+    await SqfliteMeetingRepository.onUpgrade(db, 2, 3);
+
+    final stored = (await db.query('meetings')).single['action_items'] as String;
+    expect(stored.trimLeft().startsWith('['), isTrue); // now JSON
+
+    final repo = SqfliteMeetingRepository.fromDatabase(db);
+    final loaded = (await repo.all()).single;
+    expect(loaded.actionItems,
+        const [ActionItem(text: 'do a'), ActionItem(text: 'do b')]);
+    expect(loaded.actionItems.every((a) => !a.done), isTrue);
+  });
+
+  test('v2->v3 leaves JSON action_items untouched', () async {
+    final db = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 2,
+        onCreate: SqfliteMeetingRepository.onCreate,
+        singleInstance: false,
+      ),
+    );
+    await db.insert('meetings', {
+      'title': 'New',
+      'created_at': 0,
+      'audio_path': '/a.wav',
+      'duration_ms': 0,
+      'transcript': 't',
+      'action_items': '[{"text":"keep","done":true}]',
+      'status': 'done',
+    });
+
+    await SqfliteMeetingRepository.onUpgrade(db, 2, 3);
+
+    final repo = SqfliteMeetingRepository.fromDatabase(db);
+    expect((await repo.all()).single.actionItems,
+        const [ActionItem(text: 'keep', done: true)]);
+  });
 }
