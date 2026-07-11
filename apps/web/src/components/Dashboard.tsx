@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../convex/_generated/api";
 
 export default function Dashboard() {
-  const { signOut } = useAuthActions();
   const meetings = useQuery(api.meetings.list) ?? [];
   const create = useMutation(api.meetings.create);
   const remove = useMutation(api.meetings.remove);
@@ -22,7 +20,6 @@ export default function Dashboard() {
     <main className="mx-auto max-w-2xl p-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-primary">Your meetings</h1>
-        <button onClick={() => signOut()} className="text-sm text-primary">Sign out</button>
       </header>
 
       <form onSubmit={add} className="mt-6 flex gap-2">

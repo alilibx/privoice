@@ -7,7 +7,7 @@
 
 ## ▶ What's next (priority order)
 
-1. **Web version — Privoice Cloud (React + Vite SPA on Convex)** *(in progress)* — **O0 ✅ GO** · **O1 ✅ verified** (auth + identity-scoped meetings CRUD live at `apps/web`). **Next web slices:** meeting capability on web (audio upload → **server-side STT** → minutes; server STT provider TBD, eval Cohere Transcribe), then **O3** online AI proxy + **O4** chat-with-docs; **O2** billing/BYOK can run in parallel. OAuth (Google/Apple) fast-follow on the existing auth. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
+1. **Web version — Privoice Cloud (React + Vite SPA on Convex)** *(in progress)* — **O0 ✅ GO** · **O1 ✅ verified** (auth + meetings CRUD) · **C1 ✅ verified** (document ingestion + RAG store: upload PDF/DOCX/XLSX/txt/md → parse [unpdf/mammoth/xlsx] → recursive Arabic-aware chunker → `text-embedding-3-large` (3072-dim) via OpenRouter → per-user Convex vector index; Documents page). **Next web slice: C2 — agentic chat** (Convex→OpenRouter streamed via persist-and-subscribe + tool-calling loop; first tool = `searchDocuments` vector search over C1's chunks, then `searchMeetings`) — its own brainstorm/spec/plan. Then **meeting capability on web** (audio upload → server-side STT → minutes; eval Cohere Transcribe). **O2** billing/BYOK + OAuth fast-follow. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
 2. **R7 — empty/error states + delight** *(Android backlog)* — final redesign polish pass across screens; can slot around the web work.
 3. **S4 — Export (PDF + Word .docx)** *(Android backlog)* — real functional gap; the R6 Export stub is wired and waiting.
 4. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/**Arabic** — evaluate Cohere Transcribe here) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
@@ -75,6 +75,8 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage, No
 | O3 | Online AI proxy (Convex action → OpenRouter) | ⬜ | Entitlement-gated |
 | O4 | Web: AI chat with documents (upload → parse → RAG → chat) | ⬜ | Parsing in a **Convex Node action** (`"use node"`): pdf-parse/mammoth |
 | O5 | Mobile online-tier client (settings toggle, route AI online) | ⬜ | |
+| C1 | **Web document ingestion + RAG store** | ✅ *(verified)* | Upload PDF/DOCX/XLSX/txt/md → Convex file storage → `"use node"` ingest (unpdf/mammoth/xlsx) → recursive Arabic-aware chunker (~512 tok, 10% overlap) → `openai/text-embedding-3-large` (3072-dim) via OpenRouter → per-user Convex vector index (`filterFields:["userId"]`). Documents page (upload/status/delete, cascade). Identity-gated; single `OPENROUTER_API_KEY` env secret; `/security-review` clean; convex-test authz/isolation + chunk units run from a fresh clone |
+| C2 | **Web agentic chat over documents** | ⬜ *(next)* | Convex→OpenRouter streamed (persist-and-subscribe) + tool-calling agent; tools: `searchDocuments` (vector search over C1 chunks, user-scoped) then `searchMeetings`. Own brainstorm/spec/plan |
 
 **Monorepo goes polyglot:** add `apps/web` (React + Vite) + `convex/` (backend) alongside the Flutter app; melos manages Dart, JS uses its own tooling (pnpm/npm).
 
