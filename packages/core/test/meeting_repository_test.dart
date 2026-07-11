@@ -46,11 +46,12 @@ void main() {
     final saved = await repo.insert(_m('M'));
     await repo.update(saved.copyWith(
       minutes: '### Summary\nx',
-      actionItems: ['do a', 'do b'],
+      actionItems: const [ActionItem(text: 'do a'), ActionItem(text: 'do b')],
     ));
     final loaded = await repo.byId(saved.id!);
     expect(loaded?.minutes, contains('Summary'));
-    expect(loaded?.actionItems, ['do a', 'do b']);
+    expect(loaded?.actionItems,
+        const [ActionItem(text: 'do a'), ActionItem(text: 'do b')]);
   });
 
   test('delete removes the row', () async {
@@ -83,7 +84,9 @@ void main() {
     // Should now accept the new columns.
     final repo = SqfliteMeetingRepository.fromDatabase(db);
     final saved = await repo.insert(_m('Upg'));
-    await repo.update(saved.copyWith(minutes: 'ok', actionItems: ['x']));
-    expect((await repo.byId(saved.id!))?.actionItems, ['x']);
+    await repo.update(
+        saved.copyWith(minutes: 'ok', actionItems: const [ActionItem(text: 'x')]));
+    expect((await repo.byId(saved.id!))?.actionItems,
+        const [ActionItem(text: 'x')]);
   });
 }

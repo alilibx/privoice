@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/home_meeting_groups.dart';
 import 'package:privoice_core/privoice_core.dart';
 
-Meeting _m(DateTime at, {int ms = 60000, MeetingStatus status = MeetingStatus.done, String? minutes, List<String> actions = const []}) =>
+Meeting _m(DateTime at, {int ms = 60000, MeetingStatus status = MeetingStatus.done, String? minutes, List<ActionItem> actions = const []}) =>
     Meeting(title: 't', createdAt: at, audioPath: '', durationMs: ms, status: status, minutes: minutes, actionItems: actions);
 
 void main() {
@@ -49,7 +49,7 @@ void main() {
 
   group('metaLine', () {
     test('done meeting lists time, duration, and available outputs', () {
-      final m = _m(DateTime(2026, 7, 11, 9), ms: 132000, minutes: '# x', actions: ['a', 'b']);
+      final m = _m(DateTime(2026, 7, 11, 9), ms: 132000, minutes: '# x', actions: const [ActionItem(text: 'a'), ActionItem(text: 'b')]);
       expect(metaLine(m, now), '1h ago · 2:12 · Minutes · 2 actions');
     });
     test('transcribing and failed short-circuit', () {

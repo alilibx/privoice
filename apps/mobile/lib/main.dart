@@ -72,9 +72,9 @@ Future<void> _maybeSeed(MeetingRepository repo) async {
           '- Bob: finish the login screen by Thursday\n'
           '- Carol: write release notes by Friday morning',
       actionItems: const [
-        'Bob: finish the login screen by Thursday',
-        'Carol: write release notes by Friday morning',
-        'Ship the beta on Friday',
+        ActionItem(text: 'Bob: finish the login screen by Thursday'),
+        ActionItem(text: 'Carol: write release notes by Friday morning'),
+        ActionItem(text: 'Ship the beta on Friday'),
       ],
       status: MeetingStatus.done,
     ));

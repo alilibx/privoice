@@ -107,7 +107,8 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       setState(() => _busy = false);
       return;
     }
-    _meeting = _meeting.copyWith(actionItems: items);
+    _meeting = _meeting.copyWith(
+        actionItems: items.map((t) => ActionItem(text: t)).toList());
     await widget.repository.update(_meeting);
     if (mounted) setState(() => _busy = false);
   }
@@ -214,7 +215,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                 style: Theme.of(context).textTheme.titleSmall),
           ]),
           const SizedBox(height: 12),
-          _ActionChips(items: _meeting.actionItems),
+          _ActionChips(items: _meeting.actionItems.map((a) => a.text).toList()),
           const SizedBox(height: 24),
         ],
         if (hasMinutes)
