@@ -66,9 +66,10 @@ Privoice is now a **multi-platform suite** from one Flutter codebase + a web/clo
 
 ### Online Platform — "Privoice Cloud" (Convex backend + Next.js web + online tier)
 Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) · **Next.js/React** web · **RevenueCat** billing · **OpenRouter** models. Own spec.
+**Decision (2026-07-11):** the **web app is online-tier only — transcription runs server-side** (no in-browser/WASM STT); on-device STT stays the mobile/desktop story. Server STT provider TBD (OpenRouter/Cohere Transcribe — the Arabic eval feeds this).
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
-| O0 | **Flutter ↔ Convex spike** | ⬜ | De-risk mobile↔Convex (HTTP actions + auth token / `convex_flutter`) before committing |
+| O0 | **Flutter ↔ Convex spike** | ⬜ *(kickoff — chosen 2026-07-11)* | De-risk mobile↔Convex (HTTP actions + auth token / `convex_flutter`) before committing. **Decision:** start web here (spike-first, not full brainstorm). Needs a Convex account/deployment (user sets up — account creation is out of scope for the agent) |
 | O1 | Convex backend + shared Auth + Next.js web scaffold w/ login | ⬜ | Accounts shared web + mobile |
 | O2 | Subscription + BYOK: RevenueCat + web billing, entitlements in Convex | ⬜ | Sub = our OpenRouter key (metered); BYOK = user key |
 | O3 | Online AI proxy (Convex action → OpenRouter) | ⬜ | Entitlement-gated |
