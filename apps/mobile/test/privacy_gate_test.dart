@@ -27,8 +27,9 @@ class _CountingHttpOverrides extends HttpOverrides {
 }
 
 /// Privacy gate (Dart layer): the core offline flow — browse meetings, open one,
-/// generate minutes — must not create any HTTP client. Guards against an online
-/// tier / analytics / telemetry accidentally firing while offline.
+/// render cached minutes (no button tap) — must not create any HTTP client.
+/// Guards against an online tier / analytics / telemetry accidentally firing
+/// while offline.
 ///
 /// The OS-level airplane-mode check (native traffic) is the on-device / Test Lab
 /// complement; native STT/LLM make no network calls by design.
@@ -52,6 +53,7 @@ void main() {
       audioPath: '',
       durationMs: 60000,
       transcript: 'Alice: ship the beta Friday. Bob: finish login Thursday.',
+      minutes: '### Summary\nShip the beta Friday.',
     );
 
     await tester.pumpWidget(MaterialApp(
@@ -69,14 +71,12 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Open the meeting and run the AI smart action.
+    // Open the meeting; cached minutes render on the default Overview tab.
     await tester.tap(find.text('Product sync'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Summarize'));
     await tester.pumpAndSettle();
 
     expect(find.byType(MarkdownBody), findsOneWidget,
-        reason: 'summarize flow must actually run so the privacy assertion is meaningful');
+        reason: 'cached minutes must actually render so the privacy assertion is meaningful');
 
     expect(
       overrides.count,
