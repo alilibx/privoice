@@ -42,6 +42,15 @@ class AiService {
     return e.actionItems(source);
   }
 
+  /// A short AI title for the meeting, or null if the model isn't installed
+  /// or the result is blank.
+  Future<String?> generateTitle(String transcript) async {
+    final e = await _engineOrNull();
+    if (e == null) return null;
+    final t = (await e.title(transcript)).trim();
+    return t.isEmpty ? null : t;
+  }
+
   Future<String?> ask(
     List<ChatMessage> messages, {
     String? context,

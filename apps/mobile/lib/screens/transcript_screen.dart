@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:privoice_core/privoice_core.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../ai_service.dart';
+import '../meeting_share.dart';
 import '../model_manager.dart';
 import '../widgets/ask_sheet.dart';
 
-/// Transcript + AI smart-actions (summarize → minutes, action items, ask).
+/// Matches the placeholder title from record_screen._defaultTitle()
+/// ("Meeting D/M HH:MM"). Auto-title only overwrites titles of this shape.
+final _defaultTitlePattern =
+    RegExp(r'^Meeting \d{1,2}/\d{1,2} \d{2}:\d{2}$');
+
+bool isDefaultMeetingTitle(String title) =>
+    _defaultTitlePattern.hasMatch(title.trim());
+
+/// Meeting screen: Overview (AI minutes + action items) + raw Transcript.
 class TranscriptScreen extends StatefulWidget {
   const TranscriptScreen({
     super.key,
@@ -32,6 +42,8 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   late Meeting _meeting;
 
   bool _busy = false;
+  bool _autoStarted = false;
+  bool _genFailed = false;
   String _busyLabel = '';
   double _progress = 0;
   String _streaming = '';
@@ -42,8 +54,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   void initState() {
     super.initState();
     _meeting = widget.meeting;
-    _tabs = TabController(length: 2, vsync: this);
-    // Pre-warm the model so the first smart action isn't cold.
+    _tabs = TabController(length: 2, vsync: this); // 0 = Overview, 1 = Transcript
     widget.ai.warmUp();
   }
 
@@ -54,78 +65,17 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   }
 
   String get _transcript => (_meeting.transcript ?? '').trim();
-
-  Future<void> _summarize({bool force = false}) async {
-    if (_transcript.isEmpty || _busy) return;
-    _tabs.animateTo(1);
-    // Reuse: don't reprocess if we already have minutes.
-    if (!force && (_meeting.minutes ?? '').isNotEmpty) return;
-    setState(() {
-      _busy = true;
-      _busyLabel = 'Generating minutes…';
-      _progress = 0;
-      _streaming = '';
-    });
-    final minutes = await widget.ai.summarize(
-      _transcript,
-      onToken: (partial) => setState(() => _streaming = partial),
-      onProgress: (p) => setState(() => _progress = p),
-    );
-    if (!mounted) return;
-    if (minutes == null) {
-      _snack('AI model not installed yet.');
-      setState(() => _busy = false);
-      return;
-    }
-    _meeting = _meeting.copyWith(minutes: minutes);
-    await widget.repository.update(_meeting);
-    if (mounted) setState(() => _busy = false);
-  }
-
-  Future<void> _actionItems() async {
-    if (_transcript.isEmpty || _busy) return;
-    if (_meeting.actionItems.isNotEmpty) {
-      _tabs.animateTo(1);
-      return; // reuse
-    }
-    setState(() {
-      _busy = true;
-      _busyLabel = 'Finding action items…';
-      _progress = 0;
-      _streaming = '';
-    });
-    _tabs.animateTo(1);
-    // Prefer the already-generated minutes as the source (short + coherent);
-    // avoids re-summarizing the whole transcript.
-    final source = (_meeting.minutes ?? '').isNotEmpty
-        ? _meeting.minutes!
-        : _transcript;
-    final items = await widget.ai.actionItems(source);
-    if (!mounted) return;
-    if (items == null) {
-      _snack('AI model not installed yet.');
-      setState(() => _busy = false);
-      return;
-    }
-    _meeting = _meeting.copyWith(actionItems: items);
-    await widget.repository.update(_meeting);
-    if (mounted) setState(() => _busy = false);
-  }
+  bool get _hasMinutes => (_meeting.minutes ?? '').isNotEmpty;
 
   void _ask() {
     final ctx = [
-      if ((_meeting.minutes ?? '').isNotEmpty) 'Minutes:\n${_meeting.minutes}',
+      if (_hasMinutes) 'Minutes:\n${_meeting.minutes}',
       'Transcript:\n$_transcript',
     ].join('\n\n');
     AskSheet.show(context, ai: widget.ai, groundingContext: ctx);
   }
 
-  void _share() {
-    final body = (_meeting.minutes ?? '').isNotEmpty
-        ? _meeting.minutes!
-        : _transcript;
-    Share.share(body, subject: _meeting.title);
-  }
+  void _shareText(String body) => Share.share(body, subject: _meeting.title);
 
   void _snack(String m) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
@@ -135,43 +85,95 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_meeting.title),
+        title: InkWell(
+          onTap: _rename,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: Text(_meeting.title, overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.edit_outlined,
+                size: 16, color: scheme.onSurfaceVariant),
+          ]),
+        ),
         actions: [
-          IconButton(
-            tooltip: 'Share',
-            icon: const Icon(Icons.ios_share_rounded),
-            onPressed: _share,
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: _onMenu,
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'share_minutes', child: Text('Share minutes')),
+              const PopupMenuItem(value: 'share_transcript', child: Text('Share transcript')),
+              const PopupMenuItem(
+                  value: 'share_items', child: Text('Share action items')),
+              const PopupMenuItem(value: 'copy_all', child: Text('Copy all')),
+              const PopupMenuItem(
+                  value: 'export', enabled: false, child: Text('Export (coming soon)')),
+            ],
           ),
         ],
         bottom: TabBar(
           controller: _tabs,
-          tabs: const [Tab(text: 'Transcript'), Tab(text: 'Minutes')],
+          tabs: const [Tab(text: 'Overview'), Tab(text: 'Transcript')],
         ),
       ),
-      body: Column(
-        children: [
-          ListenableBuilder(
-            listenable: _manager,
-            builder: (context, _) => _SmartActionBar(
-              busy: _busy,
-              aiReady: _manager.llmReady,
-              onSummarize: _summarize,
-              onActionItems: _actionItems,
-              onAsk: _ask,
+      body: ListenableBuilder(
+        listenable: _manager,
+        builder: (context, _) => Column(
+          children: [
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: [
+                  _overviewTab(scheme),
+                  _transcriptTab(scheme),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabs,
-              children: [
-                _transcriptTab(scheme),
-                _minutesTab(scheme),
-              ],
-            ),
-          ),
-        ],
+            _AskBar(enabled: _manager.llmReady && !_busy, onTap: _ask),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _rename() async {
+    // The dialog owns its TextEditingController (see _RenameDialog) so it is
+    // disposed exactly when the dialog's widget is actually removed from the
+    // tree — i.e. after the pop/exit animation finishes. Disposing a
+    // controller manually right after `await showDialog` returns is too
+    // early: the dialog is still rendering its closing transition and would
+    // hit "TextEditingController used after being disposed".
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => _RenameDialog(initialTitle: _meeting.title),
+    );
+    final name = result?.trim();
+    if (name == null || name.isEmpty) return;
+    setState(() => _meeting = _meeting.copyWith(title: name));
+    await widget.repository.update(_meeting);
+  }
+
+  void _onMenu(String value) {
+    switch (value) {
+      case 'share_minutes':
+        if (_hasMinutes) {
+          _shareText(_meeting.minutes!);
+        } else {
+          _snack('No minutes yet.');
+        }
+      case 'share_transcript':
+        _shareText(_transcript);
+      case 'share_items':
+        final text = actionItemsAsText(_meeting.actionItems);
+        if (text.isEmpty) {
+          _snack('No action items yet.');
+        } else {
+          _shareText(text);
+        }
+      case 'copy_all':
+        Clipboard.setData(ClipboardData(text: copyAllText(_meeting)));
+        _snack('Copied to clipboard');
+    }
   }
 
   Widget _transcriptTab(ColorScheme scheme) {
@@ -182,7 +184,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         SelectableText(_transcript,
             style: const TextStyle(fontSize: 16, height: 1.55)),
@@ -190,21 +192,131 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     );
   }
 
-  Widget _minutesTab(ColorScheme scheme) {
+  Future<void> _generateOverview() async {
+    if (_busy || _transcript.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _genFailed = false;
+      _busyLabel = 'Generating minutes…';
+      _progress = 0;
+      _streaming = '';
+    });
+
+    try {
+      // 1) Minutes (streamed).
+      final minutes = await widget.ai.summarize(
+        _transcript,
+        onToken: (partial) {
+          if (mounted) setState(() => _streaming = partial);
+        },
+        onProgress: (p) {
+          if (mounted) setState(() => _progress = p);
+        },
+      );
+      if (!mounted) return;
+      if (minutes == null) {
+        _snack('AI model not installed yet.');
+        setState(() => _busy = false);
+        return;
+      }
+      _meeting = _meeting.copyWith(minutes: minutes);
+      await widget.repository.update(_meeting);
+
+      // 2) Action items from the minutes.
+      final items = await widget.ai.actionItems(minutes);
+      if (!mounted) return;
+      if (items != null) {
+        _meeting = _meeting.copyWith(
+            actionItems: items.map((t) => ActionItem(text: t)).toList());
+        await widget.repository.update(_meeting);
+      }
+
+      // 3) Title — only if still the default placeholder.
+      if (isDefaultMeetingTitle(_meeting.title)) {
+        final title = await widget.ai.generateTitle(_transcript);
+        if (mounted && title != null && title.isNotEmpty) {
+          _meeting = _meeting.copyWith(title: title);
+          await widget.repository.update(_meeting);
+        }
+      }
+
+      if (mounted) setState(() => _busy = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _genFailed = true;
+          _busyLabel = 'Couldn’t generate minutes';
+        });
+        _snack('Generation failed. Tap Regenerate to retry.');
+      }
+    }
+  }
+
+  /// Kick the pass once, when the model is ready and nothing is cached yet.
+  void _maybeAutoGenerate() {
+    if (_autoStarted) return;
+    if (_hasMinutes || _meeting.actionItems.isNotEmpty) return;
+    if (_transcript.isEmpty || !_manager.llmReady) return;
+    _autoStarted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _generateOverview());
+  }
+
+  Widget _overviewTab(ColorScheme scheme) {
+    _maybeAutoGenerate();
+
     if (_busy) {
       return _GeneratingView(
           label: _busyLabel, progress: _progress, streaming: _streaming);
     }
 
-    final hasMinutes = (_meeting.minutes ?? '').isNotEmpty;
     final hasItems = _meeting.actionItems.isNotEmpty;
-
-    if (!hasMinutes && !hasItems) {
-      return _MinutesEmpty(onGenerate: _summarize);
+    if (!_hasMinutes && !hasItems) {
+      // Nothing cached and not generating: either the model is still
+      // preparing, the first pass failed, or there is no transcript to work
+      // from.
+      final preparing = _transcript.isNotEmpty && !_manager.llmReady;
+      if (_genFailed) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.error_outline, size: 48, color: scheme.error),
+              const SizedBox(height: 16),
+              Text('Couldn’t generate minutes',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _generateOverview,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Retry'),
+              ),
+            ]),
+          ),
+        );
+      }
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.auto_awesome_outlined, size: 48, color: scheme.primary),
+            const SizedBox(height: 16),
+            Text(preparing ? 'Preparing on-device AI…' : 'No summary yet',
+                style: Theme.of(context).textTheme.titleMedium),
+            if (preparing) ...[
+              const SizedBox(height: 12),
+              const SizedBox(
+                width: 120,
+                child: LinearProgressIndicator(minHeight: 4),
+              ),
+            ],
+          ]),
+        ),
+      );
     }
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 48),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
         if (hasItems) ...[
           Row(children: [
@@ -214,10 +326,10 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                 style: Theme.of(context).textTheme.titleSmall),
           ]),
           const SizedBox(height: 12),
-          _ActionChips(items: _meeting.actionItems),
+          _ActionList(items: _meeting.actionItems, onToggle: _toggleItem),
           const SizedBox(height: 24),
         ],
-        if (hasMinutes)
+        if (_hasMinutes)
           _RevealFade(
             child: MarkdownBody(
               data: _meeting.minutes!,
@@ -225,169 +337,186 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                   .copyWith(p: const TextStyle(fontSize: 15.5, height: 1.5)),
             ),
           ),
-        if (hasMinutes) ...[
+        if (_hasMinutes) ...[
           const SizedBox(height: 20),
           Center(
             child: TextButton.icon(
-              onPressed: () => _summarize(force: true),
+              onPressed: _regenerate,
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Regenerate minutes'),
+              label: const Text('Regenerate'),
             ),
           ),
         ],
       ],
     );
   }
+
+  Future<void> _regenerate() async {
+    _meeting = _meeting.copyWith(minutes: '');
+    await _generateOverview();
+  }
+
+  Future<void> _toggleItem(int index, bool done) async {
+    final items = List<ActionItem>.of(_meeting.actionItems);
+    items[index] = items[index].copyWith(done: done);
+    setState(() => _meeting = _meeting.copyWith(actionItems: items));
+    await widget.repository.update(_meeting);
+  }
 }
 
-class _SmartActionBar extends StatelessWidget {
-  const _SmartActionBar({
-    required this.busy,
-    required this.aiReady,
-    required this.onSummarize,
-    required this.onActionItems,
-    required this.onAsk,
-  });
+/// Rename dialog content. Owns its [TextEditingController] so it is disposed
+/// by the framework when this widget is actually unmounted (after the
+/// dialog's exit animation), not by the caller right after the route pops.
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.initialTitle});
+  final String initialTitle;
 
-  final bool busy;
-  final bool aiReady;
-  final VoidCallback onSummarize;
-  final VoidCallback onActionItems;
-  final VoidCallback onAsk;
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _controller = TextEditingController(text: widget.initialTitle);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Rename meeting'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(hintText: 'Meeting title'),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(
+            onPressed: () => Navigator.pop(context, _controller.text),
+            child: const Text('Save')),
+      ],
+    );
+  }
+}
+
+class _AskBar extends StatelessWidget {
+  const _AskBar({required this.enabled, required this.onTap});
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final enabled = aiReady && !busy;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        border: Border(
-            bottom: BorderSide(color: scheme.outlineVariant)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!aiReady)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8, left: 4),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Material(
+          color: scheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: enabled ? onTap : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(children: [
-                // Determinate (value: 0) so pumpAndSettle() in widget tests
-                // doesn't hang waiting for an indeterminate animation to end.
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, value: 0, color: scheme.primary),
-                ),
-                const SizedBox(width: 8),
-                Text('Preparing AI…',
+                Icon(Icons.chat_bubble_outline_rounded,
+                    size: 20, color: scheme.onSecondaryContainer),
+                const SizedBox(width: 12),
+                Text('Ask about this meeting…',
                     style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 13,
+                        color: scheme.onSecondaryContainer,
                         fontWeight: FontWeight.w500)),
               ]),
             ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _SmartButton(
-                    icon: Icons.auto_awesome,
-                    label: 'Summarize',
-                    onTap: enabled ? onSummarize : null),
-                const SizedBox(width: 8),
-                _SmartButton(
-                    icon: Icons.checklist_rounded,
-                    label: 'Action items',
-                    onTap: enabled ? onActionItems : null),
-                const SizedBox(width: 8),
-                _SmartButton(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    label: 'Ask',
-                    onTap: enabled ? onAsk : null),
-              ],
-            ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _SmartButton extends StatelessWidget {
-  const _SmartButton(
-      {required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return FilledButton.tonalIcon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 40),
-        backgroundColor: scheme.secondaryContainer,
-        foregroundColor: scheme.onSecondaryContainer,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-}
-
-/// Staggered scale/fade-in chips.
-class _ActionChips extends StatelessWidget {
-  const _ActionChips({required this.items});
-  final List<String> items;
+/// Checkable action-item list. Completed items sink to the bottom and strike
+/// through; the initial reveal is staggered.
+class _ActionList extends StatelessWidget {
+  const _ActionList({required this.items, required this.onToggle});
+  final List<ActionItem> items;
+  final Future<void> Function(int index, bool done) onToggle;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    // Preserve original indices (onToggle needs them) while showing
+    // undone-first, done-last.
+    final order = List<int>.generate(items.length, (i) => i)
+      ..sort((a, b) {
+        if (items[a].done == items[b].done) return a.compareTo(b);
+        return items[a].done ? 1 : -1;
+      });
+
+    return Column(
       children: [
-        for (var i = 0; i < items.length; i++)
-          TweenAnimationBuilder<double>(
-            // Index-prefixed: the LLM can emit identical action items, and a
-            // bare ValueKey(text) would collide (duplicate-key crash).
-            key: ValueKey('$i:${items[i]}'),
-            tween: Tween(begin: 0, end: 1),
-            duration: Duration(milliseconds: 260 + i * 70),
-            curve: Curves.easeOutBack,
-            builder: (_, t, child) => Opacity(
-              opacity: t.clamp(0, 1),
-              child: Transform.scale(scale: 0.8 + 0.2 * t, child: child),
-            ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.task_alt,
-                      size: 15, color: scheme.onPrimaryContainer),
-                  const SizedBox(width: 6),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                        maxWidth: MediaQuery.of(context).size.width * 0.7),
-                    child: Text(items[i],
-                        style: TextStyle(color: scheme.onPrimaryContainer)),
+        for (var pos = 0; pos < order.length; pos++)
+          _AnimatedIn(
+            delayMs: 40 * pos,
+            key: ValueKey('item-${order[pos]}'),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => onToggle(order[pos], !items[order[pos]].done),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Checkbox(
+                    value: items[order[pos]].done,
+                    onChanged: (v) => onToggle(order[pos], v ?? false),
                   ),
-                ],
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      items[order[pos]].text,
+                      style: TextStyle(
+                        color: items[order[pos]].done
+                            ? scheme.onSurfaceVariant
+                            : scheme.onSurface,
+                        decoration: items[order[pos]].done
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                  ),
+                ]),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Staggered fade/slide-in wrapper (no controller — safe under pumpAndSettle).
+class _AnimatedIn extends StatelessWidget {
+  const _AnimatedIn({super.key, required this.child, this.delayMs = 0});
+  final Widget child;
+  final int delayMs;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 220 + delayMs),
+      curve: Curves.easeOut,
+      builder: (_, t, c) => Opacity(
+        opacity: t.clamp(0, 1),
+        child: Transform.translate(offset: Offset(0, (1 - t) * 8), child: c),
+      ),
+      child: child,
     );
   }
 }
@@ -498,43 +627,6 @@ class _PulsingSparkleState extends State<_PulsingSparkle>
       scale: Tween(begin: 0.85, end: 1.15)
           .animate(CurvedAnimation(parent: _c, curve: Curves.easeInOut)),
       child: Icon(Icons.auto_awesome, size: widget.size, color: widget.color),
-    );
-  }
-}
-
-class _MinutesEmpty extends StatelessWidget {
-  const _MinutesEmpty({required this.onGenerate});
-  final VoidCallback onGenerate;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome_outlined, size: 56, color: scheme.primary),
-            const SizedBox(height: 16),
-            Text('No minutes yet',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(
-              'Generate a clean summary with decisions and action items — '
-              'right here on your phone.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: onGenerate,
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Generate minutes'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

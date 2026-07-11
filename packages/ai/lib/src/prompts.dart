@@ -41,6 +41,13 @@ class Prompts {
         '\n\nTranscript:\n$transcript';
   }
 
+  /// Ask for a short, specific meeting title (no date, no quotes).
+  static String title(String transcript) {
+    return 'Give this meeting a short, specific title of 3 to 6 words in '
+        'Title Case. No date, no quotes, no trailing punctuation. Reply with '
+        'ONLY the title.\n\nTranscript:\n$transcript';
+  }
+
   static const String chatSystem =
       'You are a helpful assistant inside a private, on-device meeting app. '
       'When meeting context is provided, ground your answers in it and be '

@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'action_item.dart';
+
 /// Lifecycle of a recorded meeting through the pipeline.
 enum MeetingStatus { recorded, transcribing, done, failed }
 
@@ -23,7 +27,7 @@ class Meeting {
   final int durationMs;
   final String? transcript;
   final String? minutes;
-  final List<String> actionItems;
+  final List<ActionItem> actionItems;
   final MeetingStatus status;
 
   Meeting copyWith({
@@ -31,7 +35,7 @@ class Meeting {
     String? title,
     String? transcript,
     String? minutes,
-    List<String>? actionItems,
+    List<ActionItem>? actionItems,
     MeetingStatus? status,
   }) {
     return Meeting(
@@ -55,7 +59,9 @@ class Meeting {
         'duration_ms': durationMs,
         'transcript': transcript,
         'minutes': minutes,
-        'action_items': actionItems.isEmpty ? null : actionItems.join('\n'),
+        'action_items': actionItems.isEmpty
+            ? null
+            : jsonEncode(actionItems.map((a) => a.toJson()).toList()),
         'status': status.name,
       };
 
@@ -68,11 +74,34 @@ class Meeting {
         durationMs: row['duration_ms'] as int,
         transcript: row['transcript'] as String?,
         minutes: row['minutes'] as String?,
-        actionItems: (row['action_items'] as String?)
-                ?.split('\n')
-                .where((s) => s.trim().isNotEmpty)
-                .toList() ??
-            const [],
+        actionItems: _decodeActionItems(row['action_items'] as String?),
         status: MeetingStatus.values.byName(row['status'] as String),
       );
+
+  static List<ActionItem> _decodeActionItems(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return const [];
+    // New format: a JSON array of {text, done}. A legacy newline-joined row
+    // can happen to start with '[' too (e.g. "[urgent] call the vendor"), so
+    // only trust this path if it actually decodes to a JSON list; otherwise
+    // fall through to the legacy split below.
+    if (raw.trimLeft().startsWith('[')) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded
+              .map((e) =>
+                  ActionItem.fromJson((e as Map).cast<String, Object?>()))
+              .toList();
+        }
+      } on FormatException {
+        // Not JSON after all — fall through to legacy newline parsing.
+      }
+    }
+    // Legacy format: newline-joined strings (pre-v3 rows).
+    return raw
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .map((s) => ActionItem(text: s))
+        .toList();
+  }
 }

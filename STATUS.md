@@ -1,17 +1,16 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-11
-**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R5 done; **reliable model download shipped + on-device verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home (grouped list + bottom record dock) ✅ · **R5** Record screen + live scrolling waveform ✅. **Model download reliability (verified on device):** STT downloads as 4 pre-extracted files from HF (no in-app tar.bz2 extraction — killed the ~6-min/48% stall), runs in a `background_downloader` foreground service, resumes across backgrounding/screen-off/swipe-away. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next: R6 (Minutes/transcript redesign).**
+**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R6 done + **on-device verified**; **reliable model download shipped + verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home ✅ · **R5** Record screen + live scrolling waveform ✅ · **R6** Overview/Transcript meeting screen (auto-generate, checkable action items, AI title, rename, share) ✅ *(verified, Redmi)*. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next: R7 (empty/error states + delight).**
 
-**Redesign (R1–R7):** R1 tokens+theme ✅ *(verified)* · R2 perceived-perf ✅ *(verified)* · R3 onboarding + background download ✅ *(verified, Redmi)* · R4 library-first Home ✅ *(verified — grouped list Today/This week/Earlier + status dots + persistent bottom record dock; FAB/toggle-search retired)* · R5 Record + live waveform ✅ *(verified — mic-amplitude scrolling waveform, `AudioRecorderHandle.levels()`)* · **R6 minutes/transcript ⬜ (next)** · R7 empty/error states + delight ⬜.
+**Redesign (R1–R7):** R1 tokens+theme ✅ *(verified)* · R2 perceived-perf ✅ *(verified)* · R3 onboarding + background download ✅ *(verified, Redmi)* · R4 library-first Home ✅ *(verified — grouped list Today/This week/Earlier + status dots + persistent bottom record dock; FAB/toggle-search retired)* · R5 Record + live waveform ✅ *(verified — mic-amplitude scrolling waveform, `AudioRecorderHandle.levels()`)* · **R6 minutes/transcript ✅ *(verified, Redmi)*** — Overview-first (default) + Transcript tabs; auto-generates minutes → checkable action items → AI title on first open (guarded, streamed, preparing/retry states); persisted done-state (schema v3 migration); inline rename (auto-title only overwrites the `Meeting D/M HH:MM` placeholder); per-section share + copy-all; disabled Export stub; persistent Ask entry. · **R7 empty/error states + delight ⬜ (next)**.
 
 ## ▶ What's next (priority order)
 
-1. **R6 — Minutes / transcript screen redesign** *(next up)* — bring the transcript + minutes view into the calm-teal language: reading layout, smart-action bar, action-item chips, share/copy, the "Ask" entry. Redesign-track slice: brainstorm → spec → plan → build → on-device.
-2. **R7 — empty/error states + delight** — final redesign polish pass across screens.
-3. **S4 — Export (PDF + Word .docx)** — real functional gap; export minutes/transcript.
-4. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/Arabic) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
-5. **Deferred / opt-in follow-ups** — a focused resume-hardening on-device pass (pause+kill recovery of the new downloader); own-bucket mirror for the 4 STT files to drop the HF dependency; golden tests + nightly Test Lab; S6 standalone chat panel; S7 document parsing; S8 online tier (Privoice Cloud — Convex/Next.js, see cloud spec).
+1. **R7 — empty/error states + delight** *(next up)* — final redesign polish pass across screens. Redesign-track slice: brainstorm → spec → plan → build → on-device.
+2. **S4 — Export (PDF + Word .docx)** — real functional gap; export minutes/transcript (the R6 Export stub is wired and waiting).
+3. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/Arabic) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
+4. **Deferred / opt-in follow-ups** — a focused resume-hardening on-device pass (pause+kill recovery of the new downloader); own-bucket mirror for the 4 STT files to drop the HF dependency; golden tests + nightly Test Lab; S6 standalone chat panel; S7 document parsing; S8 online tier (Privoice Cloud — Convex/Next.js, see cloud spec).
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -80,6 +79,7 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) ·
 - **Live recording waveform** (mic-amplitude level meter, scrolling)
 - SQLite persistence · Home / Record / Transcript screens
 - **Summarize → minutes (LLM) · Map-reduce · Action items · Ask (chat grounded in meeting)**
+- **R6 meeting screen:** Overview (default) + Transcript tabs · auto-generate minutes+items+title on open · **checkable, persisted action items** (schema v3) · **AI-generated meeting title** · **inline rename** · per-section share + copy-all · disabled Export stub · persistent Ask entry
 - **Animations:** record pulse rings · staggered list entrance · minutes reveal · action-chip stagger · typing indicator
 - Search meetings · Swipe-to-delete + undo · Share (minutes/transcript) · Copy
 - Elevated calm-teal Material 3 theme (light/dark/system) · "On-device" privacy badge
@@ -92,7 +92,7 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) ·
 - Standalone chat panel (beyond per-meeting Ask) · Chat over documents
 - Document parse: PDF · DOCX · MD/TXT
 - Tier-selectable AI engine (on-device default + online BYO) · Online STT provider
-- Settings screen · Audio playback · Rename meeting
+- Settings screen · Audio playback
 - Recording pause/resume
 
 ---
@@ -118,6 +118,9 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 ---
 
 ## Known gaps / tech debt
+
+- **R6 schema v3 (action items):** `Meeting.actionItems` is now `List<ActionItem>` (`text` + persisted `done`), serialized as JSON in the `action_items` column; `onUpgrade` v2→v3 converts legacy newline rows in place, and `fromRow` also reads the legacy form as a fallback. **On-device (Redmi) verification of the v3 migration on a real pre-R6 DB is outstanding.** Deferred non-blocking minors (from final review): `Meeting._decodeActionItems` catches `FormatException` but a `e as Map` cast could `TypeError` on *externally*-corrupted JSON (our writer never emits that); the migration loop isn't in an explicit transaction (sqflite bumps `user_version` only after `onUpgrade` returns and the loop is idempotent, so a killed migration re-runs cleanly).
+- **R6 auto-generate is on-device-only to fully exercise:** widget tests use a synchronous fake AI; the streamed generation, the "Preparing on-device AI" hold (LLM still downloading), and the first-run Retry path need a real device run to confirm feel/timing.
 
 - **Model delivery:** S5 in-app download + R3 first-launch staged/background download now cover model delivery for a real install (onboarding → background download → per-model unlock, resumes on relaunch). **On-device (Redmi) confirmed the deferred risk:** the in-process download stalls when the screen auto-locks (OS suspends the process, drops the socket). **Mitigated (R3):** a screen wakelock while downloading (now redundant, retained). **Reliable download done (code-complete; on-device pending):** downloads run via `background_downloader` 9.5.5 with `Config.runInForeground` + a progress notification (backgrounded/screen-off safe). **STT no longer ships as a tar.bz2** — it downloads as the **4 pre-extracted files** direct from HF (`csukuangfj/...parakeet-tdt-0.6b-v3-int8`), so there is **no in-app decompression** (kills the on-device ~6-min 100%-CPU / stuck-at-48% extraction). Transport uses **`enqueue` + `start(doRescheduleKilledTasks)` + stable task ids** so an interrupted download **resumes across process-death/swipe-away** (already-downloaded files skipped on relaunch). `updates` wrapped as a broadcast stream (multi-file/concurrent safe). Notification no longer falsely says "ready" (in-app banner is the source of truth). `ModelDownloader`/`ModelManager` interfaces unchanged; `archive` dep removed. Onboarding gained a 4th page priming `POST_NOTIFICATIONS`. Files land in `applicationSupport/models/<subdir>` (matches `PlatformPaths`). Build-verified (native plugin compiles); **on-device Redmi verification outstanding** (fresh install = smooth, no extraction stall; lock/background/swipe-away mid-download → resumes). Manual `adb push` (flat `files/` root) remains only a dev/test convenience.
 - **Cold-start cost:** first transcription per launch pays ~8 s model load (one-shot `compute` isolate). Optimize later with a warm long-lived isolate.
