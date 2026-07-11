@@ -1,16 +1,17 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-11
-**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R6 done + **on-device verified**; **reliable model download shipped + verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home ✅ · **R5** Record screen + live scrolling waveform ✅ · **R6** Overview/Transcript meeting screen (auto-generate, checkable action items, AI title, rename, share) ✅ *(verified, Redmi)*. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next: R7 (empty/error states + delight).**
+**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R6 done + **on-device verified**; **reliable model download shipped + verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home ✅ · **R5** Record screen + live scrolling waveform ✅ · **R6** Overview/Transcript meeting screen (auto-generate, checkable action items, AI title, rename, share) ✅ *(verified, Redmi)*. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next major workstream: Web version (Privoice Cloud — Next.js + Convex), then online tier → iOS → desktop.** (R7 polish + S4 export remain Android-app backlog.)
 
 **Redesign (R1–R7):** R1 tokens+theme ✅ *(verified)* · R2 perceived-perf ✅ *(verified)* · R3 onboarding + background download ✅ *(verified, Redmi)* · R4 library-first Home ✅ *(verified — grouped list Today/This week/Earlier + status dots + persistent bottom record dock; FAB/toggle-search retired)* · R5 Record + live waveform ✅ *(verified — mic-amplitude scrolling waveform, `AudioRecorderHandle.levels()`)* · **R6 minutes/transcript ✅ *(verified, Redmi)*** — Overview-first (default) + Transcript tabs; auto-generates minutes → checkable action items → AI title on first open (guarded, streamed, preparing/retry states); persisted done-state (schema v3 migration); inline rename (auto-title only overwrites the `Meeting D/M HH:MM` placeholder); per-section share + copy-all; disabled Export stub; persistent Ask entry. · **R7 empty/error states + delight ⬜ (next)**.
 
 ## ▶ What's next (priority order)
 
-1. **R7 — empty/error states + delight** *(next up)* — final redesign polish pass across screens. Redesign-track slice: brainstorm → spec → plan → build → on-device.
-2. **S4 — Export (PDF + Word .docx)** — real functional gap; export minutes/transcript (the R6 Export stub is wired and waiting).
-3. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/Arabic) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
-4. **Deferred / opt-in follow-ups** — a focused resume-hardening on-device pass (pause+kill recovery of the new downloader); own-bucket mirror for the 4 STT files to drop the HF dependency; golden tests + nightly Test Lab; S6 standalone chat panel; S7 document parsing; S8 online tier (Privoice Cloud — Convex/Next.js, see cloud spec).
+1. **Web version — Privoice Cloud (Next.js + Convex)** *(next major workstream)* — start the web app + cloud backend. Begin with **O0** (Flutter↔Convex spike) → **O1** (Convex backend + shared auth + Next.js scaffold w/ login). New sub-project: brainstorm → spec → plan → build. See the cloud + multi-platform spec. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
+2. **R7 — empty/error states + delight** *(Android backlog)* — final redesign polish pass across screens; can slot around the web work.
+3. **S4 — Export (PDF + Word .docx)** *(Android backlog)* — real functional gap; the R6 Export stub is wired and waiting.
+4. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/**Arabic** — evaluate Cohere Transcribe here) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
+5. **Deferred / opt-in follow-ups** — **S9** global assistant chat (all meetings + external docs); resume-hardening on-device pass; own-bucket mirror for the 4 STT files (drops HF reliance); golden tests + nightly Test Lab; S7 document parsing.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -29,9 +30,11 @@
 | S6 | AiEngine + chat | 🔨 | **Ask** sheet (chat grounded in a meeting) done; standalone chat panel + tier-selectable online engine later |
 | S4 | Export (PDF + Word .docx) | ⬜ | |
 | S5 | In-app model download | ✅ *(reworked, verified)* | Foreground-service download (`background_downloader`) — resumes across backgrounding/screen-off/swipe-away. **STT now downloads as 4 pre-extracted files from HF** (no in-app tar.bz2 extraction — removed the ~6-min/48% on-device stall). Default 1B; 3B opt-in in Settings. App reads from app-owned dir. *Device auto-tiering* still ⬜ (manual toggle for now). Own-bucket mirror for the STT files = optional follow-up (drops HF reliance) |
-| S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs |
+| S6 | AiEngine + on-device chat panel | ⬜ | General-assistant chat, grounded in meeting/docs → folded into **S9** (global assistant across all meetings + external docs) |
 | S7 | Document parsing (PDF / .docx / .md·txt) | ⬜ | Feeds summary + chat context |
 | S8 | Online tier (OpenRouter BYO key + curated list) | ⬜ | Off by default; privacy-gated |
+| S9 | **Global assistant chat (all meetings + external docs)** | ⬜ | ChatGPT-like standalone chat, same feel as the per-meeting **Ask** sheet but scoped across **all** meetings, and able to ingest **external documents** as knowledge (not tied to any meeting). RAG over meetings + docs; on-device default, online tier optional. Superset of S6 (per-meeting Ask) + S7 (doc parse) |
+| — | **STT model eval: Cohere Transcribe (Arabic)** | ⬜ | Evaluate [`CohereLabs/cohere-transcribe-03-2026`](https://huggingface.co/CohereLabs/cohere-transcribe-03-2026) as an **Arabic-capable** STT alternative/complement to Parakeet (GCC market). Check licence, size, on-device feasibility (vs server-side), latency/RTF; swappable behind `SttEngine`. Feeds **T4** Arabic WER |
 | — | Speaker diarization (sherpa-onnx) | ⬜ | Speaker labels in transcript |
 | P4 | Private GPU infra (self-hosted, zero-retention, GCC) | ⬜ | Future sub-project — own spec |
 | P5 | Proprietary meeting-STT model | ⬜ | Future sub-project — own spec |
@@ -42,13 +45,17 @@
 
 Privoice is now a **multi-platform suite** from one Flutter codebase + a web/cloud layer.
 
+**▶ Platform build order (current priority, per product direction 2026-07-11):**
+**1. Web** (Next.js + Convex) → **2. Online tier** (mobile routes AI online; billing/BYOK) → **3. iOS** (Flutter) → **4. Desktop** (Flutter, macOS first). Web is the **next major workstream**; the redesign-track polish (R7) and Export (S4) stay as near-term Android-app backlog and can slot around it.
+
 **Target platforms**
-| Platform | Tech | Capability | Status |
-|---|---|---|---|
-| Android | Flutter | on-device | ✅ working |
-| iOS | Flutter | on-device | ⬜ later |
-| macOS / Windows / Linux | Flutter (same codebase) | on-device | ⬜ new (macOS first) |
-| Web | Next.js + React | online tier only | ⬜ new |
+| Platform | Tech | Capability | Priority | Status |
+|---|---|---|---|---|
+| Android | Flutter | on-device | shipped | ✅ working |
+| Web | Next.js + React | online tier only | **1 (next)** | ⬜ new |
+| Online tier (mobile) | Convex + OpenRouter | opt-in online | **2** | ⬜ new |
+| iOS | Flutter | on-device | **3** | ⬜ |
+| macOS / Windows / Linux | Flutter (same codebase) | on-device | **4** (macOS first) | ⬜ new |
 
 ### Desktop (Flutter, offline) — reuses audio/stt/ai packages
 | ID | Item | Status | Notes |
@@ -151,7 +158,9 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 ---
 
 ## Recommended next order
-1. **S3** on-device LLM spike → summary/minutes (de-risks LLM + unblocks chat)
-2. **S5** in-app model download (self-sufficient app)
-3. **S6** chat panel
-4. **S4** export → then diarization, then S7 docs, then S8 online tier
+*(Android on-device MVP is complete + verified through R6. Direction as of 2026-07-11 pivots to multi-platform.)*
+1. **Web version — Privoice Cloud** (Next.js + Convex): **O0** spike → **O1** backend + auth + web scaffold → web UI + **O4** chat-with-docs
+2. **Online tier** for mobile: **O2** billing/BYOK → **O3** AI proxy → **O5** mobile online client
+3. **iOS** (Flutter) enablement
+4. **Desktop** (Flutter, macOS first): **D0–D2**
+5. *Android backlog, slot around the above:* **R7** delight polish · **S4** export · **S9** global assistant chat (all meetings + external docs) · **T4** Arabic WER (eval Cohere Transcribe) · diarization
