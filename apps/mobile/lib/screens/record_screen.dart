@@ -120,11 +120,37 @@ class _RecordScreenState extends State<RecordScreen> {
     return 'Meeting ${now.day}/${now.month} $h:$m';
   }
 
+  /// Intercept back/close: block leaving mid-transcribe (matches the disabled
+  /// close icon), and confirm before discarding an in-progress recording.
+  Future<void> _onPopInvoked(bool didPop, Object? result) async {
+    if (didPop || _phase != _Phase.recording) return;
+    final nav = Navigator.of(context);
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard recording?'),
+        content: const Text('Your in-progress recording will be lost.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Keep recording')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Discard')),
+        ],
+      ),
+    );
+    if (discard == true) nav.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final recording = _phase == _Phase.recording;
-    return Scaffold(
+    return PopScope(
+      canPop: _phase == _Phase.idle || _phase == _Phase.error,
+      onPopInvokedWithResult: _onPopInvoked,
+      child: Scaffold(
       appBar: AppBar(
         centerTitle: true,
         title: recording
@@ -157,6 +183,7 @@ class _RecordScreenState extends State<RecordScreen> {
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Center(child: _body(scheme)),
+      ),
       ),
     );
   }
