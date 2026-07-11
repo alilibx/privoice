@@ -41,6 +41,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
   bool _busy = false;
   bool _autoStarted = false;
+  bool _genFailed = false;
   String _busyLabel = '';
   double _progress = 0;
   String _streaming = '';
@@ -157,6 +158,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     if (_busy || _transcript.isEmpty) return;
     setState(() {
       _busy = true;
+      _genFailed = false;
       _busyLabel = 'Generating minutes…';
       _progress = 0;
       _streaming = '';
@@ -201,6 +203,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       if (mounted) {
         setState(() {
           _busy = false;
+          _genFailed = true;
           _busyLabel = 'Couldn’t generate minutes';
         });
         _snack('Generation failed. Tap Regenerate to retry.');
@@ -227,9 +230,29 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
     final hasItems = _meeting.actionItems.isNotEmpty;
     if (!_hasMinutes && !hasItems) {
-      // Nothing cached and not generating: either the model is still preparing
-      // or there is no transcript to work from.
+      // Nothing cached and not generating: either the model is still
+      // preparing, the first pass failed, or there is no transcript to work
+      // from.
       final preparing = _transcript.isNotEmpty && !_manager.llmReady;
+      if (_genFailed) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.error_outline, size: 48, color: scheme.error),
+              const SizedBox(height: 16),
+              Text('Couldn’t generate minutes',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _generateOverview,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Retry'),
+              ),
+            ]),
+          ),
+        );
+      }
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
