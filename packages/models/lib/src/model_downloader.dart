@@ -126,10 +126,30 @@ class ModelDownloader {
       allowPause: true,
     );
     final done = Completer<void>();
+    Timer? watchdog;
+    void armWatchdog() {
+      watchdog?.cancel();
+      // 120s of ZERO progress while downloading = genuinely stalled: there is
+      // no extraction phase anymore, and background_downloader emits
+      // progress updates periodically while a task is actually active. This
+      // guards against ANY missing-terminal-update scenario (a paused task
+      // that can't be resumed, a dropped complete/failed event, etc.) so a
+      // stuck download surfaces as a retryable error instead of hanging
+      // `await done.future` forever with no error and no progress.
+      watchdog = Timer(const Duration(seconds: 120), () {
+        if (!done.isCompleted) {
+          done.completeError(StateError('download stalled for ${file.fileName}'));
+        }
+      });
+    }
+
     final sub = _updates.listen((update) {
       if (update.task.taskId != taskId) return;
       if (update is TaskProgressUpdate) {
-        if (update.progress >= 0) onFileProgress(update.progress);
+        if (update.progress >= 0) {
+          onFileProgress(update.progress);
+          armWatchdog();
+        }
       } else if (update is TaskStatusUpdate) {
         switch (update.status) {
           case TaskStatus.complete:
@@ -146,6 +166,7 @@ class ModelDownloader {
         }
       }
     });
+    armWatchdog();
     try {
       // A task with this stable id may already be active — e.g. rescheduled
       // by `FileDownloader().start(doRescheduleKilledTasks: true)` after a
@@ -155,15 +176,27 @@ class ModelDownloader {
       // implementation does NOT dedupe `enqueue()` by taskId — WorkManager
       // would simply start a second parallel job with the same tag — so we
       // must check first rather than rely on `enqueue()` returning false.
+      //
+      // Note: `doRescheduleKilledTasks` does NOT resume tasks that were
+      // PAUSED before the process died — those come back from `taskForId`
+      // as an inert paused task that will never emit another update. Resume
+      // it explicitly (or let the watchdog above catch it if resume isn't
+      // possible).
       final existing = await FileDownloader().taskForId(taskId);
       if (existing == null) {
         final ok = await FileDownloader().enqueue(task);
         if (!ok) {
           throw StateError('failed to enqueue ${file.fileName}');
         }
+      } else if (existing is DownloadTask &&
+          await FileDownloader().taskCanResume(existing)) {
+        await FileDownloader().resume(existing);
       }
+      // else: an already-running task will drive `_updates` normally, and
+      // the watchdog will surface a stall if it doesn't.
       await done.future;
     } finally {
+      watchdog?.cancel();
       await sub.cancel();
     }
   }
