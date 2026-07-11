@@ -25,6 +25,7 @@ abstract class AudioRecorderHandle {
 
 /// dBFS (≤ 0) → 0..1. At/below [floorDb] → 0; 0 dBFS → 1.
 double normalizeAmplitude(double dbfs, {double floorDb = -50.0}) {
+  assert(floorDb < 0);
   return ((dbfs - floorDb) / -floorDb).clamp(0.0, 1.0);
 }
 

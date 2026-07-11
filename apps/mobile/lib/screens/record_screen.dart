@@ -51,6 +51,7 @@ class _RecordScreenState extends State<RecordScreen> {
   }
 
   Future<void> _start() async {
+    if (_phase != _Phase.idle && _phase != _Phase.error) return;
     if (!await _recorder.hasPermission()) {
       setState(() {
         _phase = _Phase.error;
