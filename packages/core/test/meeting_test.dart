@@ -72,4 +72,23 @@ void main() {
     expect(m.actionItems,
         const [ActionItem(text: 'do a'), ActionItem(text: 'do b')]);
   });
+
+  test('fromRow legacy fallback tolerates a line starting with "["', () {
+    final row = {
+      'id': 1,
+      'title': 'Legacy',
+      'created_at': 0,
+      'audio_path': '/a.wav',
+      'duration_ms': 0,
+      'transcript': 't',
+      'minutes': null,
+      'action_items': '[urgent] call the vendor\ndo b',
+      'status': 'done',
+    };
+    final m = Meeting.fromRow(row);
+    expect(m.actionItems, const [
+      ActionItem(text: '[urgent] call the vendor'),
+      ActionItem(text: 'do b'),
+    ]);
+  });
 }

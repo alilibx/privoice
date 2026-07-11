@@ -80,12 +80,22 @@ class Meeting {
 
   static List<ActionItem> _decodeActionItems(String? raw) {
     if (raw == null || raw.trim().isEmpty) return const [];
-    // New format: a JSON array of {text, done}.
+    // New format: a JSON array of {text, done}. A legacy newline-joined row
+    // can happen to start with '[' too (e.g. "[urgent] call the vendor"), so
+    // only trust this path if it actually decodes to a JSON list; otherwise
+    // fall through to the legacy split below.
     if (raw.trimLeft().startsWith('[')) {
-      final list = jsonDecode(raw) as List;
-      return list
-          .map((e) => ActionItem.fromJson((e as Map).cast<String, Object?>()))
-          .toList();
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          return decoded
+              .map((e) =>
+                  ActionItem.fromJson((e as Map).cast<String, Object?>()))
+              .toList();
+        }
+      } on FormatException {
+        // Not JSON after all — fall through to legacy newline parsing.
+      }
     }
     // Legacy format: newline-joined strings (pre-v3 rows).
     return raw
