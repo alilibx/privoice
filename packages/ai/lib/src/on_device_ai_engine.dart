@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:fllama/fllama.dart';
 
+import 'action_items.dart';
 import 'ai_engine.dart';
 import 'map_reduce.dart';
 import 'prompts.dart';
@@ -112,11 +113,7 @@ class OnDeviceAiEngine implements AiEngine {
       [ChatMessage.user(Prompts.actionItems(_cap(source, 2500)))],
       maxTokens: 300,
     );
-    return out
-        .split('\n')
-        .map((l) => l.replaceFirst(RegExp(r'^\s*[-*]\s*'), '').trim())
-        .where((l) => l.isNotEmpty && l.toLowerCase() != 'none')
-        .toList();
+    return parseActionItems(out);
   }
 
   @override
