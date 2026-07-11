@@ -4,6 +4,7 @@ import 'package:privoice_core/privoice_core.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../ai_service.dart';
+import '../model_manager.dart';
 import '../widgets/ask_sheet.dart';
 
 /// Transcript + AI smart-actions (summarize → minutes, action items, ask).
@@ -13,11 +14,13 @@ class TranscriptScreen extends StatefulWidget {
     required this.meeting,
     required this.repository,
     required this.ai,
+    this.modelManager,
   });
 
   final Meeting meeting;
   final MeetingRepository repository;
   final AiService ai;
+  final ModelManager? modelManager;
 
   @override
   State<TranscriptScreen> createState() => _TranscriptScreenState();
@@ -32,6 +35,8 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   String _busyLabel = '';
   double _progress = 0;
   String _streaming = '';
+
+  ModelManager get _manager => widget.modelManager ?? ModelManager.instance;
 
   @override
   void initState() {
@@ -145,11 +150,15 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       ),
       body: Column(
         children: [
-          _SmartActionBar(
-            busy: _busy,
-            onSummarize: _summarize,
-            onActionItems: _actionItems,
-            onAsk: _ask,
+          ListenableBuilder(
+            listenable: _manager,
+            builder: (context, _) => _SmartActionBar(
+              busy: _busy,
+              aiReady: _manager.llmReady,
+              onSummarize: _summarize,
+              onActionItems: _actionItems,
+              onAsk: _ask,
+            ),
           ),
           Expanded(
             child: TabBarView(
@@ -234,45 +243,73 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 class _SmartActionBar extends StatelessWidget {
   const _SmartActionBar({
     required this.busy,
+    required this.aiReady,
     required this.onSummarize,
     required this.onActionItems,
     required this.onAsk,
   });
 
   final bool busy;
+  final bool aiReady;
   final VoidCallback onSummarize;
   final VoidCallback onActionItems;
   final VoidCallback onAsk;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = aiReady && !busy;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       decoration: BoxDecoration(
         border: Border(
-            bottom: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant)),
+            bottom: BorderSide(color: scheme.outlineVariant)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _SmartButton(
-                icon: Icons.auto_awesome,
-                label: 'Summarize',
-                onTap: busy ? null : onSummarize),
-            const SizedBox(width: 8),
-            _SmartButton(
-                icon: Icons.checklist_rounded,
-                label: 'Action items',
-                onTap: busy ? null : onActionItems),
-            const SizedBox(width: 8),
-            _SmartButton(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Ask',
-                onTap: busy ? null : onAsk),
-          ],
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!aiReady)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8, left: 4),
+              child: Row(children: [
+                // Determinate (value: 0) so pumpAndSettle() in widget tests
+                // doesn't hang waiting for an indeterminate animation to end.
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, value: 0, color: scheme.primary),
+                ),
+                const SizedBox(width: 8),
+                Text('Preparing AI…',
+                    style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500)),
+              ]),
+            ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _SmartButton(
+                    icon: Icons.auto_awesome,
+                    label: 'Summarize',
+                    onTap: enabled ? onSummarize : null),
+                const SizedBox(width: 8),
+                _SmartButton(
+                    icon: Icons.checklist_rounded,
+                    label: 'Action items',
+                    onTap: enabled ? onActionItems : null),
+                const SizedBox(width: 8),
+                _SmartButton(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    label: 'Ask',
+                    onTap: enabled ? onAsk : null),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
