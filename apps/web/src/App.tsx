@@ -1,10 +1,24 @@
+import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import AuthForm from "./components/AuthForm";
+
 export default function App() {
+  const { signOut } = useAuthActions();
   return (
-    <main className="min-h-screen grid place-items-center p-6">
-      <div className="rounded-xl border border-outline bg-surface p-8 text-center">
-        <h1 className="text-2xl font-bold text-primary">Privoice</h1>
-        <p className="mt-2 text-on-surface-variant">Private meeting notes — web.</p>
-      </div>
-    </main>
+    <>
+      <AuthLoading>
+        <main className="min-h-screen grid place-items-center">Loading…</main>
+      </AuthLoading>
+      <Unauthenticated>
+        <AuthForm />
+      </Unauthenticated>
+      <Authenticated>
+        {/* Dashboard replaces this in Task 4 */}
+        <main className="min-h-screen p-6">
+          <button onClick={() => signOut()} className="text-primary">Sign out</button>
+          <p className="mt-4 text-on-surface-variant">Signed in.</p>
+        </main>
+      </Authenticated>
+    </>
   );
 }
