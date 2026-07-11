@@ -30,6 +30,29 @@ jobs:
       - name: Test
         run: melos run test
 
+  web:
+    name: Web (apps/web) — typecheck + test + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install
+        run: npm ci
+      # convex/_generated is committed, so tests run without a Convex deploy.
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Test
+        run: npm run test
+      - name: Build
+        run: npm run build
+
   build-android:
     name: Android debug build (catches native breakage)
     runs-on: ubuntu-latest

@@ -7,7 +7,7 @@
 
 ## ▶ What's next (priority order)
 
-1. **Web version — Privoice Cloud (React + Vite SPA on Convex)** *(next major workstream)* — start the web app + cloud backend. **O0 Flutter↔Convex spike ✅ GO** → next **O1** (Convex backend + shared auth + React/Vite scaffold w/ login). New sub-project: brainstorm → spec → plan → build. See the cloud + multi-platform spec. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
+1. **Web version — Privoice Cloud (React + Vite SPA on Convex)** *(in progress)* — **O0 ✅ GO** · **O1 ✅ verified** (auth + identity-scoped meetings CRUD live at `apps/web`). **Next web slices:** meeting capability on web (audio upload → **server-side STT** → minutes; server STT provider TBD, eval Cohere Transcribe), then **O3** online AI proxy + **O4** chat-with-docs; **O2** billing/BYOK can run in parallel. OAuth (Google/Apple) fast-follow on the existing auth. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
 2. **R7 — empty/error states + delight** *(Android backlog)* — final redesign polish pass across screens; can slot around the web work.
 3. **S4 — Export (PDF + Word .docx)** *(Android backlog)* — real functional gap; the R6 Export stub is wired and waiting.
 4. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/**Arabic** — evaluate Cohere Transcribe here) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
@@ -52,7 +52,7 @@ Privoice is now a **multi-platform suite** from one Flutter codebase + a web/clo
 | Platform | Tech | Capability | Priority | Status |
 |---|---|---|---|---|
 | Android | Flutter | on-device | shipped | ✅ working |
-| Web | React + Vite (SPA) | online tier only | **1 (next)** | ⬜ new · O0 GO |
+| Web | React + Vite (SPA) | online tier only | **1 (in progress)** | 🔨 O0 GO · O1 ✅ (auth + meetings CRUD live) |
 | Online tier (mobile) | Convex + OpenRouter | opt-in online | **2** | ⬜ new |
 | iOS | Flutter | on-device | **3** | ⬜ |
 | macOS / Windows / Linux | Flutter (same codebase) | on-device | **4** (macOS first) | ⬜ new |
@@ -70,7 +70,7 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage, No
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
 | O0 | **Flutter ↔ Convex spike** | ✅ 🧪 *(GO, 2026-07-12)* | De-risked (`spikes/o0-convex/`). **HTTP-action transport from Dart proven headlessly** (smoke: GET /ping + POST /echo 200 against `colorless-mammoth-659`). **`convex_flutter` v3.0.1** confirmed viable (Android/iOS/web/desktop; Rust FFI; subscribe/mutation/setAuth) — community pkg, pin it. **Key reframing:** web app uses Convex's **official `convex/react`** client (near-zero risk); `convex_flutter` only matters for mobile online tier. **Deferred → O5:** on-device convex_flutter run (native load + WS + auth + file upload). Not blocking web |
-| O1 | Convex backend + shared Auth + React/Vite web scaffold w/ login | ⬜ *(next)* | Accounts shared web + mobile; official `convex/react` client |
+| O1 | Convex backend + shared Auth + React/Vite web scaffold w/ login | ✅ *(verified live)* | `apps/web` on Convex (`colorless-mammoth-659`); Convex Auth Password (email+pw, 8-char min); identity-gated `meetings` list/create/remove (authz isolation tested, convex-test 4/4); calm-teal light UI; sign-up→login→create verified in browser. `/security-review` clean. Tests run from a fresh clone (committed `_generated`) + web CI job. OAuth = fast-follow |
 | O2 | Subscription + BYOK: RevenueCat + web billing, entitlements in Convex | ⬜ | Sub = our OpenRouter key (metered); BYOK = user key |
 | O3 | Online AI proxy (Convex action → OpenRouter) | ⬜ | Entitlement-gated |
 | O4 | Web: AI chat with documents (upload → parse → RAG → chat) | ⬜ | Parsing in a **Convex Node action** (`"use node"`): pdf-parse/mammoth |

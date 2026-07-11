@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* Light-only for now — the calm-teal tokens are light values; a real dark theme
+   is a later slice. Pinning color-scheme keeps the OS from painting native form
+   controls (inputs) dark on a light page. */
+:root { color-scheme: light; }
+body { margin: 0; background: theme(colors.page-bg); color: theme(colors.on-surface); font-family: system-ui, -apple-system, sans-serif; }

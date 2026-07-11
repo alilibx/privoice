@@ -1,5 +1,11 @@
 # O0 spike — Flutter ↔ Convex (throwaway)
 
+> ⚠️ **Deployable code removed (2026-07-12, security hygiene).** The spike's Convex
+> functions (`convex/*.ts` incl. the **unauthenticated** `files.ts` upload/read) and
+> the Dart smoke client were deleted after O0 was GO, so they can never be
+> accidentally re-deployed. This README is retained only as the record of what O0
+> proved (see Findings below). The `apps/web` O1 backend is the real, auth-gated one.
+
 **Goal:** de-risk the mobile↔Convex seam before committing to O1 (real backend).
 Prove: (1) call a Convex **query**/**mutation** from Flutter via `convex_flutter`,
 (2) the plain **HTTP-action** transport works from Dart, (3) an **auth** token
