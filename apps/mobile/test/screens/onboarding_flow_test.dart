@@ -18,8 +18,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Next'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
 
-    // Page 3: Start visible.
+    // Page 4: Start visible.
     expect(find.text('Start'), findsOneWidget);
     await tester.tap(find.text('Start'));
     await tester.pumpAndSettle();
