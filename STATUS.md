@@ -69,7 +69,7 @@ Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) ·
 **Decision (2026-07-11):** the **web app is online-tier only — transcription runs server-side** (no in-browser/WASM STT); on-device STT stays the mobile/desktop story. Server STT provider TBD (OpenRouter/Cohere Transcribe — the Arabic eval feeds this).
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
-| O0 | **Flutter ↔ Convex spike** | ⬜ *(kickoff — chosen 2026-07-11)* | De-risk mobile↔Convex (HTTP actions + auth token / `convex_flutter`) before committing. **Decision:** start web here (spike-first, not full brainstorm). Needs a Convex account/deployment (user sets up — account creation is out of scope for the agent) |
+| O0 | **Flutter ↔ Convex spike** | ✅ 🧪 *(GO, 2026-07-12)* | De-risked (`spikes/o0-convex/`). **HTTP-action transport from Dart proven headlessly** (smoke: GET /ping + POST /echo 200 against `colorless-mammoth-659`). **`convex_flutter` v3.0.1** confirmed viable (Android/iOS/web/desktop; Rust FFI; subscribe/mutation/setAuth) — community pkg, pin it. **Key reframing:** web app uses Convex's **official `convex/react`** client (near-zero risk); `convex_flutter` only matters for mobile online tier. **Deferred → O5:** on-device convex_flutter run (native load + WS + auth + file upload). Not blocking web |
 | O1 | Convex backend + shared Auth + Next.js web scaffold w/ login | ⬜ | Accounts shared web + mobile |
 | O2 | Subscription + BYOK: RevenueCat + web billing, entitlements in Convex | ⬜ | Sub = our OpenRouter key (metered); BYOK = user key |
 | O3 | Online AI proxy (Convex action → OpenRouter) | ⬜ | Entitlement-gated |
