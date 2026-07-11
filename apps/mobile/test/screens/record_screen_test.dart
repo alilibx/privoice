@@ -52,4 +52,27 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: SizedBox()));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('pressing back while recording asks to discard', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: RecordScreen(
+        repository: FakeMeetingRepository(),
+        recorder: FakeAudioRecorderHandle(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('recordButton')));
+    await tester.pump(); // recording phase
+    await tester.pump(); // drain levels
+
+    // Back (via the close button) must be intercepted while recording.
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump(); // onPopInvoked → showDialog
+    await tester.pump(const Duration(milliseconds: 350)); // dialog animates in
+    expect(find.text('Discard recording?'), findsOneWidget);
+
+    // Tear down (closes dialog + disposes the screen → cancels the ticker).
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pump(const Duration(milliseconds: 350));
+  });
 }

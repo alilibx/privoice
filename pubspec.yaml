@@ -35,5 +35,5 @@ melos:
     test:
       # Sequential: native-asset (sherpa/fllama) builds share a cache dir, so
       # parallel `flutter test` runs race and contend for the flutter lock.
-      run: melos exec --concurrency 1 -- flutter test
+      run: melos exec --concurrency 1 --dir-exists=test -- flutter test
       description: Run tests in all packages (sequential)
