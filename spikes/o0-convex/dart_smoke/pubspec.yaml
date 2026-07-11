@@ -1,0 +1,7 @@
+name: convex_o0_smoke
+description: Throwaway headless Dart client for the O0 Convex spike (HTTP-action path).
+publish_to: none
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+dependencies:
+  http: ^1.2.0
