@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 import AuthForm from "../components/AuthForm";
 
@@ -12,7 +12,11 @@ test("submits email/password with the signIn flow", async () => {
   fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "a@b.com" } });
   fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "pw123456" } });
   fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
-  expect(signIn).toHaveBeenCalledWith("password", {
-    email: "a@b.com", password: "pw123456", flow: "signIn",
+  // await inside act via waitFor so the post-await setBusy(false) in AuthForm
+  // doesn't resolve after the test body returns (which logged an act() warning).
+  await waitFor(() => {
+    expect(signIn).toHaveBeenCalledWith("password", {
+      email: "a@b.com", password: "pw123456", flow: "signIn",
+    });
   });
 });
