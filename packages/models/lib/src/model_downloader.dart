@@ -1,8 +1,6 @@
 import 'dart:io';
 
-import 'package:archive/archive.dart';
 import 'package:background_downloader/background_downloader.dart';
-import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import 'model_spec.dart';
@@ -20,7 +18,7 @@ class ModelInstallProgress {
   final String modelId;
   final String label;
   final double fraction; // 0..1
-  final String phase; // 'Downloading…' | 'Extracting…' | 'Ready'
+  final String phase; // 'Downloading…' | 'Ready'
 }
 
 class ModelDownloader {
@@ -46,18 +44,22 @@ class ModelDownloader {
       onProgress(_p(spec, 1, 'Ready'));
       return;
     }
-    final dir = await PlatformPaths.subdir(spec.subdir);
+    final totalBytes =
+        spec.files.fold<int>(0, (s, f) => s + (f.approxBytes > 0 ? f.approxBytes : 1));
+    final frac = <String, double>{for (final f in spec.files) f.fileName: 0.0};
+    void report() {
+      final agg = spec.files.fold<double>(
+          0, (s, f) => s + frac[f.fileName]! * (f.approxBytes > 0 ? f.approxBytes : 1));
+      onProgress(_p(spec, agg / totalBytes, 'Downloading…'));
+    }
+
     for (final file in spec.files) {
-      await _downloadFile(file, spec, onProgress);
-      if (file.isTarBz2) {
-        final dest = p.join(dir, file.fileName);
-        onProgress(_p(spec, 0.96, 'Extracting…'));
-        await compute(
-          _extractTarBz2,
-          _ExtractArgs(dest, dir, spec.expectedFiles),
-        );
-        await File(dest).delete();
-      }
+      await _downloadFile(file, spec, (f) {
+        frac[file.fileName] = f;
+        report();
+      });
+      frac[file.fileName] = 1.0;
+      report();
     }
     onProgress(_p(spec, 1, 'Ready'));
   }
@@ -66,13 +68,13 @@ class ModelDownloader {
   Future<void> _downloadFile(
     ModelFile file,
     ModelSpec spec,
-    void Function(ModelInstallProgress) onProgress,
+    void Function(double fileFraction) onFileProgress,
   ) async {
     final urls = [file.url, if (file.fallbackUrl != null) file.fallbackUrl!];
     Object? lastError;
     for (final url in urls) {
       try {
-        await _downloadFrom(url, file, spec, onProgress);
+        await _downloadFrom(url, file, spec, onFileProgress);
         // Verify it actually landed where isInstalled/pathTo look.
         if (!File(await pathTo(spec, file.fileName)).existsSync()) {
           throw StateError('downloaded file missing at expected path');
@@ -89,10 +91,8 @@ class ModelDownloader {
     String url,
     ModelFile file,
     ModelSpec spec,
-    void Function(ModelInstallProgress) onProgress,
+    void Function(double) onFileProgress,
   ) async {
-    // Reserve the last 4% for extraction on archive models.
-    final ceiling = spec.files.any((f) => f.isTarBz2) ? 0.95 : 1.0;
     final task = DownloadTask(
       url: url,
       filename: file.fileName,
@@ -105,9 +105,7 @@ class ModelDownloader {
     final result = await FileDownloader().download(
       task,
       onProgress: (progress) {
-        if (progress >= 0) {
-          onProgress(_p(spec, progress * ceiling, 'Downloading…'));
-        }
+        if (progress >= 0) onFileProgress(progress);
       },
     );
     if (result.status != TaskStatus.complete) {
@@ -118,26 +116,4 @@ class ModelDownloader {
   ModelInstallProgress _p(ModelSpec s, double f, String phase) =>
       ModelInstallProgress(
           modelId: s.id, label: s.displayName, fraction: f.clamp(0, 1), phase: phase);
-}
-
-class _ExtractArgs {
-  const _ExtractArgs(this.archivePath, this.destDir, this.expected);
-  final String archivePath;
-  final String destDir;
-  final List<String> expected;
-}
-
-/// Runs in a background isolate: bunzip2 + untar, writing only the expected
-/// files (flattened) into destDir.
-void _extractTarBz2(_ExtractArgs args) {
-  final compressed = File(args.archivePath).readAsBytesSync();
-  final tarBytes = BZip2Decoder().decodeBytes(compressed);
-  final archive = TarDecoder().decodeBytes(tarBytes);
-  for (final entry in archive) {
-    if (!entry.isFile) continue;
-    final base = p.basename(entry.name);
-    if (args.expected.contains(base)) {
-      File(p.join(args.destDir, base)).writeAsBytesSync(entry.content as List<int>);
-    }
-  }
 }
