@@ -12,7 +12,9 @@ import '../fakes/fake_model_downloader.dart';
 
 Meeting _meeting({String? minutes, List<ActionItem> items = const []}) => Meeting(
       id: 1,
-      title: 'Product sync',
+      // Default-shaped title (record_screen._defaultTitle()) so the
+      // auto-generate pass's title-upgrade guard applies in tests too.
+      title: 'Meeting 10/7 09:00',
       createdAt: DateTime(2026, 7, 10),
       audioPath: '',
       durationMs: 60000,
@@ -41,7 +43,15 @@ Future<void> _pump(WidgetTester tester,
       modelManager: manager ?? _ready(),
     ),
   ));
-  await tester.pumpAndSettle();
+  // Bounded pumps instead of pumpAndSettle: the busy view's pulsing sparkle
+  // and the "preparing" state's indeterminate LinearProgressIndicator both
+  // repeat forever, which would make pumpAndSettle hang. FakeAiEngine
+  // resolves via microtasks (no real timers), so a handful of pumps drains
+  // the auto-generate pass and lets the finite entrance animations
+  // (chips/reveal, <= ~700ms) finish too.
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 void main() {
@@ -95,4 +105,58 @@ void main() {
     );
     expect(export.enabled, isFalse);
   });
+
+  testWidgets('auto-generates minutes + items + title on open, once',
+      (tester) async {
+    final m = _meeting(); // no minutes
+    final repo = FakeMeetingRepository([m]);
+    final engine = FakeAiEngine(
+      minutes: '### Summary\nGenerated once.',
+      items: const ['Ship it'],
+      titleText: 'Beta Launch Sync',
+    );
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    expect(find.textContaining('Generated once.'), findsWidgets);
+    expect(find.text('Ship it'), findsOneWidget);
+
+    final saved = await repo.byId(1);
+    expect(saved?.minutes, contains('Generated once.'));
+    expect(saved?.actionItems.map((a) => a.text), ['Ship it']);
+    // Default title was auto-upgraded.
+    expect(saved?.title, 'Beta Launch Sync');
+  });
+
+  testWidgets('does not auto-run when minutes already cached', (tester) async {
+    final m = _meeting(minutes: '### Summary\nCached.');
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    expect(engine.summarizeCalls, 0);
+  });
+
+  testWidgets('shows Preparing AI hold when LLM not ready', (tester) async {
+    final m = _meeting();
+    await _pump(
+      tester,
+      meeting: m,
+      repo: FakeMeetingRepository([m]),
+      manager: ModelManager(downloader: FakeModelDownloader()), // not ready
+    );
+    expect(find.textContaining('Preparing on-device AI'), findsOneWidget);
+  });
+}
+
+class _CountingAiEngine extends FakeAiEngine {
+  int summarizeCalls = 0;
+  @override
+  Future<String> summarize(String transcript,
+      {String? userInstructions,
+      void Function(String partial)? onToken,
+      void Function(double)? onProgress}) async {
+    summarizeCalls++;
+    return super.summarize(transcript,
+        userInstructions: userInstructions, onToken: onToken, onProgress: onProgress);
+  }
 }

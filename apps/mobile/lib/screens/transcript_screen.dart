@@ -7,6 +7,14 @@ import '../ai_service.dart';
 import '../model_manager.dart';
 import '../widgets/ask_sheet.dart';
 
+/// Matches the placeholder title from record_screen._defaultTitle()
+/// ("Meeting D/M HH:MM"). Auto-title only overwrites titles of this shape.
+final _defaultTitlePattern =
+    RegExp(r'^Meeting \d{1,2}/\d{1,2} \d{2}:\d{2}$');
+
+bool isDefaultMeetingTitle(String title) =>
+    _defaultTitlePattern.hasMatch(title.trim());
+
 /// Meeting screen: Overview (AI minutes + action items) + raw Transcript.
 class TranscriptScreen extends StatefulWidget {
   const TranscriptScreen({
@@ -31,11 +39,11 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   late TabController _tabs;
   late Meeting _meeting;
 
-  // Never set true in Task 4 (no generation pass yet); Task 5 drives this via
-  // setState during auto-generate and reintroduces the progress/streaming
-  // state alongside it.
-  // ignore: prefer_final_fields
   bool _busy = false;
+  bool _autoStarted = false;
+  String _busyLabel = '';
+  double _progress = 0;
+  String _streaming = '';
 
   ModelManager get _manager => widget.modelManager ?? ModelManager.instance;
 
@@ -145,15 +153,103 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     );
   }
 
+  Future<void> _generateOverview() async {
+    if (_busy || _transcript.isEmpty) return;
+    setState(() {
+      _busy = true;
+      _busyLabel = 'Generating minutes…';
+      _progress = 0;
+      _streaming = '';
+    });
+
+    try {
+      // 1) Minutes (streamed).
+      final minutes = await widget.ai.summarize(
+        _transcript,
+        onToken: (partial) => setState(() => _streaming = partial),
+        onProgress: (p) => setState(() => _progress = p),
+      );
+      if (!mounted) return;
+      if (minutes == null) {
+        _snack('AI model not installed yet.');
+        setState(() => _busy = false);
+        return;
+      }
+      _meeting = _meeting.copyWith(minutes: minutes);
+      await widget.repository.update(_meeting);
+
+      // 2) Action items from the minutes.
+      final items = await widget.ai.actionItems(minutes);
+      if (!mounted) return;
+      if (items != null) {
+        _meeting = _meeting.copyWith(
+            actionItems: items.map((t) => ActionItem(text: t)).toList());
+        await widget.repository.update(_meeting);
+      }
+
+      // 3) Title — only if still the default placeholder.
+      if (isDefaultMeetingTitle(_meeting.title)) {
+        final title = await widget.ai.generateTitle(_transcript);
+        if (mounted && title != null && title.isNotEmpty) {
+          _meeting = _meeting.copyWith(title: title);
+          await widget.repository.update(_meeting);
+        }
+      }
+
+      if (mounted) setState(() => _busy = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _busyLabel = 'Couldn’t generate minutes';
+        });
+        _snack('Generation failed. Tap Regenerate to retry.');
+      }
+    }
+  }
+
+  /// Kick the pass once, when the model is ready and nothing is cached yet.
+  void _maybeAutoGenerate() {
+    if (_autoStarted) return;
+    if (_hasMinutes || _meeting.actionItems.isNotEmpty) return;
+    if (_transcript.isEmpty || !_manager.llmReady) return;
+    _autoStarted = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _generateOverview());
+  }
+
   Widget _overviewTab(ColorScheme scheme) {
+    _maybeAutoGenerate();
+
+    if (_busy) {
+      return _GeneratingView(
+          label: _busyLabel, progress: _progress, streaming: _streaming);
+    }
+
     final hasItems = _meeting.actionItems.isNotEmpty;
     if (!_hasMinutes && !hasItems) {
-      // Auto-generate arrives in Task 5; until then show a calm placeholder.
+      // Nothing cached and not generating: either the model is still preparing
+      // or there is no transcript to work from.
+      final preparing = _transcript.isNotEmpty && !_manager.llmReady;
       return Center(
-        child: Text('No summary yet.',
-            style: TextStyle(color: scheme.onSurfaceVariant)),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.auto_awesome_outlined, size: 48, color: scheme.primary),
+            const SizedBox(height: 16),
+            Text(preparing ? 'Preparing on-device AI…' : 'No summary yet',
+                style: Theme.of(context).textTheme.titleMedium),
+            if (preparing) ...[
+              const SizedBox(height: 12),
+              const SizedBox(
+                width: 120,
+                child: LinearProgressIndicator(minHeight: 4),
+              ),
+            ],
+          ]),
+        ),
       );
     }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
@@ -176,8 +272,23 @@ class _TranscriptScreenState extends State<TranscriptScreen>
                   .copyWith(p: const TextStyle(fontSize: 15.5, height: 1.5)),
             ),
           ),
+        if (_hasMinutes) ...[
+          const SizedBox(height: 20),
+          Center(
+            child: TextButton.icon(
+              onPressed: _regenerate,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Regenerate'),
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  Future<void> _regenerate() async {
+    _meeting = _meeting.copyWith(minutes: '');
+    await _generateOverview();
   }
 }
 
@@ -288,11 +399,8 @@ class _RevealFade extends StatelessWidget {
   }
 }
 
-// Reused starting Task 5 (auto-generate pass shows this while busy).
-// ignore: unused_element
 class _GeneratingView extends StatelessWidget {
   const _GeneratingView(
-      // ignore: unused_element_parameter
       {required this.label, required this.progress, this.streaming = ''});
   final String label;
   final double progress;
