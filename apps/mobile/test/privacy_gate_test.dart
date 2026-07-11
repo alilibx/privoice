@@ -53,7 +53,9 @@ void main() {
       audioPath: '',
       durationMs: 60000,
       transcript: 'Alice: ship the beta Friday. Bob: finish login Thursday.',
-      minutes: '### Summary\nShip the beta Friday.',
+      // No cached minutes: opening the meeting must run the on-device
+      // auto-generate pass (minutes -> action items -> title) entirely
+      // offline — the strongest form of this privacy assertion.
     );
 
     await tester.pumpWidget(MaterialApp(
@@ -71,12 +73,19 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // Open the meeting; cached minutes render on the default Overview tab.
+    // Open the meeting; auto-generate fires on the default Overview tab.
     await tester.tap(find.text('Product sync'));
-    await tester.pumpAndSettle();
+    // Bounded pumps instead of pumpAndSettle: while the auto-generate pass
+    // is busy, the generating view's pulsing sparkle animates forever, which
+    // would make pumpAndSettle hang. FakeAiEngine resolves via microtasks
+    // (no real timers), so a handful of pumps drains the pass and lets the
+    // finite entrance animations finish too.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
 
     expect(find.byType(MarkdownBody), findsOneWidget,
-        reason: 'cached minutes must actually render so the privacy assertion is meaningful');
+        reason: 'auto-generated minutes must actually render so the privacy assertion is meaningful');
 
     expect(
       overrides.count,
