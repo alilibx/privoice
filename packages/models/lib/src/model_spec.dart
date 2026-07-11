@@ -42,7 +42,8 @@ class ModelSpec {
   /// Directory (relative to the models root) where this model's files live.
   final String subdir;
 
-  /// Files to download (single entry for GGUF; a tar.bz2 for STT).
+  /// Files to download (single GGUF for the LLM; the 4 pre-extracted
+  /// encoder/decoder/joiner/tokens files for STT).
   final List<ModelFile> files;
 
   /// Files that must exist under [subdir] for the model to be considered ready.

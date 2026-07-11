@@ -15,10 +15,13 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Only a running/progress notification (the foreground-service notification).
+  // No per-file `complete`/`error` pop: with a multi-file model set the plugin
+  // fires those per download task, which falsely announced "Models ready" when
+  // just the first file finished. The in-app Home banner is the source of
+  // truth for overall readiness and errors.
   FileDownloader().configureNotification(
     running: const TaskNotification('Downloading models', '{progress}'),
-    complete: const TaskNotification('Models ready', 'Setup complete'),
-    error: const TaskNotification('Download failed', 'Reopen Privoice to retry'),
     progressBar: true,
   );
   await FileDownloader().configure(
