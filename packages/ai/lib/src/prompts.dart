@@ -34,8 +34,10 @@ class Prompts {
 
   static String actionItems(String transcript) {
     return 'Extract the action items from this meeting transcript. Return ONLY '
-        'a plain list, one action item per line, each starting with "- ". '
-        'Include the owner if mentioned. If there are none, return "- None".'
+        'a plain list with one action item per line, each line starting with '
+        '"- ". If an owner is mentioned, include it inline in the same line. '
+        'Do not add owner, status, or placeholder lines. If there are no '
+        'action items at all, reply with exactly: None'
         '\n\nTranscript:\n$transcript';
   }
 
