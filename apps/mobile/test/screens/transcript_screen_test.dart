@@ -217,6 +217,24 @@ void main() {
     final shipIt = saved!.actionItems.firstWhere((a) => a.text == 'Ship it');
     expect(shipIt.done, isTrue);
   });
+
+  testWidgets('tapping the title renames the meeting', (tester) async {
+    final m = _meeting(minutes: '### Summary\nx');
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+
+    // _meeting()'s default title is the default-shaped placeholder
+    // ('Meeting 10/7 09:00'), not a real title — tap that.
+    await tester.tap(find.text('Meeting 10/7 09:00'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Renamed Meeting');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Renamed Meeting'), findsOneWidget);
+    expect((await repo.byId(1))?.title, 'Renamed Meeting');
+  });
 }
 
 class _CountingAiEngine extends FakeAiEngine {

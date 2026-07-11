@@ -83,7 +83,17 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(_meeting.title),
+        title: InkWell(
+          onTap: _rename,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Flexible(
+              child: Text(_meeting.title, overflow: TextOverflow.ellipsis),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.edit_outlined,
+                size: 16, color: scheme.onSurfaceVariant),
+          ]),
+        ),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -120,6 +130,34 @@ class _TranscriptScreenState extends State<TranscriptScreen>
         ),
       ),
     );
+  }
+
+  Future<void> _rename() async {
+    final controller = TextEditingController(text: _meeting.title);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename meeting'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(hintText: 'Meeting title'),
+          onSubmitted: (v) => Navigator.pop(context, v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    final name = result?.trim();
+    if (name == null || name.isEmpty) return;
+    setState(() => _meeting = _meeting.copyWith(title: name));
+    await widget.repository.update(_meeting);
   }
 
   void _onMenu(String value) {
