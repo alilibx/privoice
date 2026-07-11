@@ -9,7 +9,12 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as documents from "../documents.js";
 import type * as http from "../http.js";
+import type * as ingest from "../ingest.js";
+import type * as ingestStore from "../ingestStore.js";
+import type * as lib_chunk from "../lib/chunk.js";
+import type * as lib_embed from "../lib/embed.js";
 import type * as meetings from "../meetings.js";
 
 import type {
@@ -20,7 +25,12 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  documents: typeof documents;
   http: typeof http;
+  ingest: typeof ingest;
+  ingestStore: typeof ingestStore;
+  "lib/chunk": typeof lib_chunk;
+  "lib/embed": typeof lib_embed;
   meetings: typeof meetings;
 }>;
 
