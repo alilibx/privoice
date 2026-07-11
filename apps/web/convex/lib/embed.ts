@@ -1,7 +1,7 @@
 // Calls OpenRouter's OpenAI-compatible embeddings endpoint. Server-only:
 // reads OPENROUTER_API_KEY from the Convex env; never expose to the client.
 const ENDPOINT = "https://openrouter.ai/api/v1/embeddings";
-const MODEL = "openai/text-embedding-3-small";
+const MODEL = "openai/text-embedding-3-large";
 const BATCH = 96;
 
 export async function embedChunks(texts: string[]): Promise<number[][]> {
