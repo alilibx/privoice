@@ -1,9 +1,9 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-11
-**Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
+**Now:** On-device record→transcribe→summarize works; **S5 model download done** (resumable, extraction verified). **Redesign underway** (mockups approved). **R1 done + on-device verified:** elevated calm-teal tokens + **light/dark/system theme setting** (live switch, persisted). **R2 perceived-perf landed:** LLM streaming, result reuse, no double-work, warm-up. **R3 onboarding + staged/background download landed (code-complete):** first-launch 3-screen intro, then the app opens while STT+LLM download in the background via `ModelManager`; Record unlocks on STT, AI actions on LLM; `ModelGate` retired. Automated-verified (26 tests + debug build); full on-device onboarding/download walkthrough still pending. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab).
 
-**Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ⬜ · R4 home ⬜ · R5 record ⬜ · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
+**Redesign (R1–R7):** R1 tokens+theme ✅ · R2 perceived-perf ✅ (streaming/reuse/warm-up) · R3 onboarding + staged/background download ✅ *(code-complete; on-device walkthrough pending)* — 3-screen intro + in-process resilient background download (`ModelManager`), per-model feature gating (Record↔STT, AI↔LLM), `ModelGate` retired · R4 home ⬜ · R5 record ⬜ · R6 minutes ⬜ · R7 empty/error states + delight ⬜. Next: verify R3 on device (Redmi), then R4 home; T4 STT WER harness / T6 perf-thermal (both need on-device runs), golden tests, nightly Test Lab.
 
 > ⚠️ **This file is the single source of truth for progress.** Read it at the start of every work session and update it whenever a task/feature changes status. See CLAUDE.md.
 
@@ -109,7 +109,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 
 ## Known gaps / tech debt
 
-- **Model delivery:** model is only present via manual `adb push` (flat `files/` root). S5 in-app download is required for a real app.
+- **Model delivery:** S5 in-app download + R3 first-launch staged/background download now cover model delivery for a real install (onboarding → background download → per-model unlock, resumes on relaunch). Remaining: a true OS foreground-service downloader (survives app-swipe-away) is a possible follow-up if on-device testing shows aggressive OEM process-kill (Xiaomi) stalls the in-process download; the `ModelManager` interface stays the same. Manual `adb push` (flat `files/` root) remains only a dev/test convenience.
 - **Cold-start cost:** first transcription per launch pays ~8 s model load (one-shot `compute` isolate). Optimize later with a warm long-lived isolate.
 - **STT accuracy unvalidated on real meetings:** only clean sample tested. Need WER on accents/crosstalk/far-field + sustained RTF on 1-hour audio + thermal.
 - **Spike harness retained:** `spike_screen.dart`, `benchmark.dart`, `integration_test/`, `tools/emulator-stt-test.sh` kept for re-benchmarking; not wired into the shipping app.
