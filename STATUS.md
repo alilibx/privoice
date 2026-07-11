@@ -1,13 +1,13 @@
 # Privoice — Project Status
 
 **Last updated:** 2026-07-11
-**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R6 done + **on-device verified**; **reliable model download shipped + verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home ✅ · **R5** Record screen + live scrolling waveform ✅ · **R6** Overview/Transcript meeting screen (auto-generate, checkable action items, AI title, rename, share) ✅ *(verified, Redmi)*. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next major workstream: Web version (Privoice Cloud — Next.js + Convex), then online tier → iOS → desktop.** (R7 polish + S4 export remain Android-app backlog.)
+**Now:** Full on-device flow (onboarding → record → transcribe → summarize) **working on the Redmi**. Redesign R1–R6 done + **on-device verified**; **reliable model download shipped + verified**. **R1** calm-teal tokens + light/dark/system theme ✅ · **R2** perceived-perf (LLM streaming, reuse, warm-up) ✅ · **R3** onboarding + background download ✅ · **R4** library-first Home ✅ · **R5** Record screen + live scrolling waveform ✅ · **R6** Overview/Transcript meeting screen (auto-generate, checkable action items, AI title, rename, share) ✅ *(verified, Redmi)*. **Testing:** T0 ✅ · T1 🔨 (privacy ✅) · T2 ✅ (CI) · T3 ✅ (Test Lab). **Next major workstream: Web version (Privoice Cloud — React + Vite SPA on Convex), then online tier → iOS → desktop.** (R7 polish + S4 export remain Android-app backlog.)
 
 **Redesign (R1–R7):** R1 tokens+theme ✅ *(verified)* · R2 perceived-perf ✅ *(verified)* · R3 onboarding + background download ✅ *(verified, Redmi)* · R4 library-first Home ✅ *(verified — grouped list Today/This week/Earlier + status dots + persistent bottom record dock; FAB/toggle-search retired)* · R5 Record + live waveform ✅ *(verified — mic-amplitude scrolling waveform, `AudioRecorderHandle.levels()`)* · **R6 minutes/transcript ✅ *(verified, Redmi)*** — Overview-first (default) + Transcript tabs; auto-generates minutes → checkable action items → AI title on first open (guarded, streamed, preparing/retry states); persisted done-state (schema v3 migration); inline rename (auto-title only overwrites the `Meeting D/M HH:MM` placeholder); per-section share + copy-all; disabled Export stub; persistent Ask entry. · **R7 empty/error states + delight ⬜ (next)**.
 
 ## ▶ What's next (priority order)
 
-1. **Web version — Privoice Cloud (Next.js + Convex)** *(next major workstream)* — start the web app + cloud backend. Begin with **O0** (Flutter↔Convex spike) → **O1** (Convex backend + shared auth + Next.js scaffold w/ login). New sub-project: brainstorm → spec → plan → build. See the cloud + multi-platform spec. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
+1. **Web version — Privoice Cloud (React + Vite SPA on Convex)** *(next major workstream)* — start the web app + cloud backend. **O0 Flutter↔Convex spike ✅ GO** → next **O1** (Convex backend + shared auth + React/Vite scaffold w/ login). New sub-project: brainstorm → spec → plan → build. See the cloud + multi-platform spec. Then **2. Online tier** (O2/O3/O5), **3. iOS**, **4. Desktop** — see the Platform build order below.
 2. **R7 — empty/error states + delight** *(Android backlog)* — final redesign polish pass across screens; can slot around the web work.
 3. **S4 — Export (PDF + Word .docx)** *(Android backlog)* — real functional gap; the R6 Export stub is wired and waiting.
 4. **On-device quality harnesses** — **T4** STT WER (accents/crosstalk/far-mic/**Arabic** — evaluate Cohere Transcribe here) + **T6** perf/thermal → device-tier→model table. Both need on-device runs.
@@ -46,13 +46,13 @@
 Privoice is now a **multi-platform suite** from one Flutter codebase + a web/cloud layer.
 
 **▶ Platform build order (current priority, per product direction 2026-07-11):**
-**1. Web** (Next.js + Convex) → **2. Online tier** (mobile routes AI online; billing/BYOK) → **3. iOS** (Flutter) → **4. Desktop** (Flutter, macOS first). Web is the **next major workstream**; the redesign-track polish (R7) and Export (S4) stay as near-term Android-app backlog and can slot around it.
+**1. Web** (React + Vite SPA on Convex) → **2. Online tier** (mobile routes AI online; billing/BYOK) → **3. iOS** (Flutter) → **4. Desktop** (Flutter, macOS first). Web is the **next major workstream**; the redesign-track polish (R7) and Export (S4) stay as near-term Android-app backlog and can slot around it. **Stack decision (2026-07-12):** web is a **React + Vite SPA** (no Next.js) — Convex is the full backend (DB/functions/auth/file-storage/HTTP actions), and heavy doc parsing runs in **Convex Node actions** (`"use node"`), so no Node server layer is needed. SSR/marketing pages handled separately later if wanted.
 
 **Target platforms**
 | Platform | Tech | Capability | Priority | Status |
 |---|---|---|---|---|
 | Android | Flutter | on-device | shipped | ✅ working |
-| Web | Next.js + React | online tier only | **1 (next)** | ⬜ new |
+| Web | React + Vite (SPA) | online tier only | **1 (next)** | ⬜ new · O0 GO |
 | Online tier (mobile) | Convex + OpenRouter | opt-in online | **2** | ⬜ new |
 | iOS | Flutter | on-device | **3** | ⬜ |
 | macOS / Windows / Linux | Flutter (same codebase) | on-device | **4** (macOS first) | ⬜ new |
@@ -64,19 +64,19 @@ Privoice is now a **multi-platform suite** from one Flutter codebase + a web/clo
 | D1 | Platform adaptation: `sqflite_common_ffi` on desktop + `PlatformPaths` (model/storage per OS) | ⬜ | Path logic shared with S5 |
 | D2 | Desktop UX pass (window sizing, menus) + Windows/Linux | ⬜ | |
 
-### Online Platform — "Privoice Cloud" (Convex backend + Next.js web + online tier)
-Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage) · **Next.js/React** web · **RevenueCat** billing · **OpenRouter** models. Own spec.
+### Online Platform — "Privoice Cloud" (Convex backend + React/Vite web + online tier)
+Opt-in, off by default. Stack: **Convex** (auth, DB, functions, file storage, Node actions) · **React + Vite (SPA)** web via official `convex/react` · **RevenueCat** billing · **OpenRouter** models. Own spec.
 **Decision (2026-07-11):** the **web app is online-tier only — transcription runs server-side** (no in-browser/WASM STT); on-device STT stays the mobile/desktop story. Server STT provider TBD (OpenRouter/Cohere Transcribe — the Arabic eval feeds this).
 | ID | Item | Status | Notes |
 |----|------|--------|-------|
 | O0 | **Flutter ↔ Convex spike** | ✅ 🧪 *(GO, 2026-07-12)* | De-risked (`spikes/o0-convex/`). **HTTP-action transport from Dart proven headlessly** (smoke: GET /ping + POST /echo 200 against `colorless-mammoth-659`). **`convex_flutter` v3.0.1** confirmed viable (Android/iOS/web/desktop; Rust FFI; subscribe/mutation/setAuth) — community pkg, pin it. **Key reframing:** web app uses Convex's **official `convex/react`** client (near-zero risk); `convex_flutter` only matters for mobile online tier. **Deferred → O5:** on-device convex_flutter run (native load + WS + auth + file upload). Not blocking web |
-| O1 | Convex backend + shared Auth + Next.js web scaffold w/ login | ⬜ | Accounts shared web + mobile |
+| O1 | Convex backend + shared Auth + React/Vite web scaffold w/ login | ⬜ *(next)* | Accounts shared web + mobile; official `convex/react` client |
 | O2 | Subscription + BYOK: RevenueCat + web billing, entitlements in Convex | ⬜ | Sub = our OpenRouter key (metered); BYOK = user key |
 | O3 | Online AI proxy (Convex action → OpenRouter) | ⬜ | Entitlement-gated |
-| O4 | Web: AI chat with documents (upload → parse → RAG → chat) | ⬜ | Node parsing: pdf-parse/mammoth |
+| O4 | Web: AI chat with documents (upload → parse → RAG → chat) | ⬜ | Parsing in a **Convex Node action** (`"use node"`): pdf-parse/mammoth |
 | O5 | Mobile online-tier client (settings toggle, route AI online) | ⬜ | |
 
-**Monorepo goes polyglot:** add `apps/web` (Next.js) + `convex/` (backend) alongside the Flutter app; melos manages Dart, JS uses its own tooling.
+**Monorepo goes polyglot:** add `apps/web` (React + Vite) + `convex/` (backend) alongside the Flutter app; melos manages Dart, JS uses its own tooling (pnpm/npm).
 
 ---
 
@@ -160,7 +160,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 
 ## Recommended next order
 *(Android on-device MVP is complete + verified through R6. Direction as of 2026-07-11 pivots to multi-platform.)*
-1. **Web version — Privoice Cloud** (Next.js + Convex): **O0** spike → **O1** backend + auth + web scaffold → web UI + **O4** chat-with-docs
+1. **Web version — Privoice Cloud** (React + Vite on Convex): **O0** spike ✅ GO → **O1** backend + auth + web scaffold → web UI + **O4** chat-with-docs
 2. **Online tier** for mobile: **O2** billing/BYOK → **O3** AI proxy → **O5** mobile online client
 3. **iOS** (Flutter) enablement
 4. **Desktop** (Flutter, macOS first): **D0–D2**
