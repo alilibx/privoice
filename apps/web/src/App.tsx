@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/Dashboard";
 import Documents from "./components/Documents";
 
 function AuthenticatedShell() {
   const [view, setView] = useState<"meetings" | "documents">("meetings");
+  const { signOut } = useAuthActions();
 
   return (
     <>
-      <nav className="mx-auto flex max-w-2xl gap-2 px-6 pt-6">
+      <nav className="mx-auto flex max-w-2xl items-center gap-2 px-6 pt-6">
         <button
           onClick={() => setView("meetings")}
           aria-current={view === "meetings" || undefined}
@@ -31,6 +33,12 @@ function AuthenticatedShell() {
           }
         >
           Documents
+        </button>
+        <button
+          onClick={() => signOut()}
+          className="ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-primary"
+        >
+          Sign out
         </button>
       </nav>
       {view === "meetings" ? <Dashboard /> : <Documents />}

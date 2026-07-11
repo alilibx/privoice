@@ -28,7 +28,7 @@ export default function Documents() {
     <section className="mx-auto max-w-2xl p-6">
       <h1 className="text-2xl font-bold text-primary">Documents</h1>
       <label className="mt-6 block cursor-pointer rounded-xl border border-dashed border-outline bg-surface p-6 text-center text-on-surface-variant">
-        {busy ? "Uploading…" : "Drop a file or click to upload (PDF, Word, Excel, txt, md)"}
+        {busy ? "Uploading…" : "Click to upload a file (PDF, Word, Excel, txt, md)"}
         <input type="file" accept=".pdf,.docx,.xlsx,.txt,.md" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
       </label>
