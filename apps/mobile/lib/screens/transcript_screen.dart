@@ -355,7 +355,9 @@ class _ActionChips extends StatelessWidget {
       children: [
         for (var i = 0; i < items.length; i++)
           TweenAnimationBuilder<double>(
-            key: ValueKey(items[i]),
+            // Index-prefixed: the LLM can emit identical action items, and a
+            // bare ValueKey(text) would collide (duplicate-key crash).
+            key: ValueKey('$i:${items[i]}'),
             tween: Tween(begin: 0, end: 1),
             duration: Duration(milliseconds: 260 + i * 70),
             curve: Curves.easeOutBack,
