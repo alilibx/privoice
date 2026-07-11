@@ -131,4 +131,38 @@ void main() {
     );
     expect(button.onPressed, isNull); // disabled
   });
+
+  testWidgets('duplicate action items render without a duplicate-key crash',
+      (tester) async {
+    final meeting = Meeting(
+      id: 1,
+      title: 'Product sync',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 60000,
+      transcript: 'Alice: ship the beta Friday.',
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: TranscriptScreen(
+        meeting: meeting,
+        repository: FakeMeetingRepository([meeting]),
+        // The on-device LLM sometimes emits the same action item twice.
+        ai: AiService(engine: FakeAiEngine(items: const ['Ship it', 'Ship it'])),
+        modelManager: ModelManager(
+          downloader: FakeModelDownloader(installed: {
+            ModelCatalog.parakeetStt.id,
+            ModelCatalog.llama1b.id,
+          }),
+        )..markAllReadyForTest(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Action items'));
+    await tester.pumpAndSettle();
+
+    // Must not throw "Multiple widgets used the same GlobalKey / duplicate keys".
+    expect(tester.takeException(), isNull);
+    expect(find.text('Ship it'), findsNWidgets(2));
+  });
 }
