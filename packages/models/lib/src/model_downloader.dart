@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:background_downloader/background_downloader.dart';
@@ -70,6 +71,14 @@ class ModelDownloader {
     ModelSpec spec,
     void Function(double fileFraction) onFileProgress,
   ) async {
+    // Already fully downloaded (e.g. by a prior run resumed on relaunch)?
+    // background_downloader only writes the final path on completion, so a
+    // present final file means done — skip re-downloading and never wait on
+    // an updates event that already fired.
+    if (File(await pathTo(spec, file.fileName)).existsSync()) {
+      onFileProgress(1.0);
+      return;
+    }
     final urls = [file.url, if (file.fallbackUrl != null) file.fallbackUrl!];
     Object? lastError;
     for (final url in urls) {
@@ -87,13 +96,22 @@ class ModelDownloader {
     throw lastError ?? StateError('download failed: ${file.fileName}');
   }
 
+  /// Enqueues (rather than awaits) the download under a **stable** task id
+  /// derived from [spec] + [file], so a relaunch after process death
+  /// re-attaches to the same task instead of restarting it. Completion is
+  /// observed via the shared `FileDownloader().updates` stream instead of
+  /// the convenience `download()` future, because `download()` always mints
+  /// a fresh task id and therefore cannot resume a task the OS rescheduled
+  /// on launch (see `FileDownloader().start()` in main.dart).
   Future<void> _downloadFrom(
     String url,
     ModelFile file,
     ModelSpec spec,
     void Function(double) onFileProgress,
   ) async {
+    final taskId = '${spec.id}::${file.fileName}';
     final task = DownloadTask(
+      taskId: taskId,
       url: url,
       filename: file.fileName,
       baseDirectory: BaseDirectory.applicationSupport,
@@ -102,14 +120,46 @@ class ModelDownloader {
       retries: 3,
       allowPause: true,
     );
-    final result = await FileDownloader().download(
-      task,
-      onProgress: (progress) {
-        if (progress >= 0) onFileProgress(progress);
-      },
-    );
-    if (result.status != TaskStatus.complete) {
-      throw StateError('download ${result.status.name} for $url');
+    final done = Completer<void>();
+    final sub = FileDownloader().updates.listen((update) {
+      if (update.task.taskId != taskId) return;
+      if (update is TaskProgressUpdate) {
+        if (update.progress >= 0) onFileProgress(update.progress);
+      } else if (update is TaskStatusUpdate) {
+        switch (update.status) {
+          case TaskStatus.complete:
+            if (!done.isCompleted) done.complete();
+          case TaskStatus.failed:
+          case TaskStatus.notFound:
+          case TaskStatus.canceled:
+            if (!done.isCompleted) {
+              done.completeError(
+                  StateError('download ${update.status.name} for $url'));
+            }
+          default:
+            break;
+        }
+      }
+    });
+    try {
+      // A task with this stable id may already be active — e.g. rescheduled
+      // by `FileDownloader().start(doRescheduleKilledTasks: true)` after a
+      // process-death relaunch, or already running from an earlier call in
+      // this same session (the primary/fallback retry loop in
+      // `_downloadFile` reuses this taskId across attempts). 9.5.5's Android
+      // implementation does NOT dedupe `enqueue()` by taskId — WorkManager
+      // would simply start a second parallel job with the same tag — so we
+      // must check first rather than rely on `enqueue()` returning false.
+      final existing = await FileDownloader().taskForId(taskId);
+      if (existing == null) {
+        final ok = await FileDownloader().enqueue(task);
+        if (!ok) {
+          throw StateError('failed to enqueue ${file.fileName}');
+        }
+      }
+      await done.future;
+    } finally {
+      await sub.cancel();
     }
   }
 

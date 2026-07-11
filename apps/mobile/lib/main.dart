@@ -24,6 +24,12 @@ Future<void> main() async {
   await FileDownloader().configure(
     androidConfig: [(Config.runInForeground, true)],
   );
+  // Persist task state to the plugin DB, then reschedule any tasks the OS
+  // killed and resume delivering their background updates — this is what
+  // lets an interrupted model download recover after process death instead
+  // of restarting from zero.
+  await FileDownloader().trackTasks();
+  await FileDownloader().start(doRescheduleKilledTasks: true);
   final repository = await SqfliteMeetingRepository.open();
   final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);
