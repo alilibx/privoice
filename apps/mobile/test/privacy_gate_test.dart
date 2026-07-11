@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/ai_service.dart';
 import 'package:mobile/model_manager.dart';
@@ -73,6 +74,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Summarize'));
     await tester.pumpAndSettle();
+
+    expect(find.byType(MarkdownBody), findsOneWidget,
+        reason: 'summarize flow must actually run so the privacy assertion is meaningful');
 
     expect(
       overrides.count,

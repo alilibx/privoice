@@ -85,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
           meeting: m,
           repository: widget.repository,
           ai: widget.ai,
+          modelManager: _manager,
         ),
       ),
     );
