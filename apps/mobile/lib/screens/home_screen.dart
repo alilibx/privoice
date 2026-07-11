@@ -52,8 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Meeting> get _visible {
-    if (_query.trim().isEmpty) return _all;
-    final q = _query.toLowerCase();
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _all;
     return _all
         .where((m) =>
             m.title.toLowerCase().contains(q) ||
@@ -146,7 +146,19 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     final visible = _visible;
     if (visible.isEmpty) {
-      return _EmptyState(scheme: scheme, searching: _query.trim().isNotEmpty);
+      return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.6,
+              child: _EmptyState(
+                  scheme: scheme, searching: _query.trim().isNotEmpty),
+            ),
+          ],
+        ),
+      );
     }
     final now = DateTime.now();
     final groups = groupMeetings(visible, now);
