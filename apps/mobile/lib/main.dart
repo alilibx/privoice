@@ -15,15 +15,23 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Only a running/progress notification (the foreground-service notification).
+  // No per-file `complete`/`error` pop: with a multi-file model set the plugin
+  // fires those per download task, which falsely announced "Models ready" when
+  // just the first file finished. The in-app Home banner is the source of
+  // truth for overall readiness and errors.
   FileDownloader().configureNotification(
     running: const TaskNotification('Downloading models', '{progress}'),
-    complete: const TaskNotification('Models ready', 'Setup complete'),
-    error: const TaskNotification('Download failed', 'Reopen Privoice to retry'),
     progressBar: true,
   );
   await FileDownloader().configure(
     androidConfig: [(Config.runInForeground, true)],
   );
+  // start() persists task state to the plugin DB (doTrackTasks defaults to
+  // true) and reschedules any tasks the OS killed, resuming delivery of
+  // their background updates — this is what lets an interrupted model
+  // download recover after process death instead of restarting from zero.
+  await FileDownloader().start(doRescheduleKilledTasks: true);
   final repository = await SqfliteMeetingRepository.open();
   final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);

@@ -7,7 +7,7 @@ class ModelFile {
     required this.url,
     required this.fileName,
     this.fallbackUrl,
-    this.isTarBz2 = false,
+    this.approxBytes = 0,
   });
 
   /// Primary source (free direct-from-source: GitHub / Hugging Face).
@@ -18,8 +18,9 @@ class ModelFile {
 
   final String fileName;
 
-  /// If true, the downloaded file is a .tar.bz2 to extract in place.
-  final bool isTarBz2;
+  /// Approximate size of this file, used to weight aggregate progress
+  /// across a model's files.
+  final int approxBytes;
 }
 
 /// A model the app can download and use.
@@ -41,7 +42,8 @@ class ModelSpec {
   /// Directory (relative to the models root) where this model's files live.
   final String subdir;
 
-  /// Files to download (single entry for GGUF; a tar.bz2 for STT).
+  /// Files to download (single GGUF for the LLM; the 4 pre-extracted
+  /// encoder/decoder/joiner/tokens files for STT).
   final List<ModelFile> files;
 
   /// Files that must exist under [subdir] for the model to be considered ready.
@@ -65,9 +67,27 @@ class ModelCatalog {
       // mirror returns via authenticated download in the cloud tier.
       ModelFile(
         url:
-            'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2',
-        fileName: 'parakeet.tar.bz2',
-        isTarBz2: true,
+            'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/encoder.int8.onnx',
+        fileName: 'encoder.int8.onnx',
+        approxBytes: 652 * 1024 * 1024,
+      ),
+      ModelFile(
+        url:
+            'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/decoder.int8.onnx',
+        fileName: 'decoder.int8.onnx',
+        approxBytes: 12 * 1024 * 1024,
+      ),
+      ModelFile(
+        url:
+            'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/joiner.int8.onnx',
+        fileName: 'joiner.int8.onnx',
+        approxBytes: 7 * 1024 * 1024,
+      ),
+      ModelFile(
+        url:
+            'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main/tokens.txt',
+        fileName: 'tokens.txt',
+        approxBytes: 1 * 1024 * 1024,
       ),
     ],
     expectedFiles: [
@@ -76,7 +96,7 @@ class ModelCatalog {
       'joiner.int8.onnx',
       'tokens.txt',
     ],
-    approxBytes: 680 * 1024 * 1024,
+    approxBytes: 672 * 1024 * 1024,
   );
 
   static const llama1b = ModelSpec(
@@ -89,6 +109,7 @@ class ModelCatalog {
         url:
             'https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
         fileName: 'llama-3.2-1b-instruct-q4.gguf',
+        approxBytes: 808 * 1024 * 1024,
       ),
     ],
     expectedFiles: ['llama-3.2-1b-instruct-q4.gguf'],
@@ -105,6 +126,7 @@ class ModelCatalog {
         url:
             'https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf',
         fileName: 'llama-3.2-3b-instruct-q4.gguf',
+        approxBytes: 2020 * 1024 * 1024,
       ),
     ],
     expectedFiles: ['llama-3.2-3b-instruct-q4.gguf'],
