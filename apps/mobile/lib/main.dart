@@ -21,6 +21,9 @@ Future<void> main() async {
     error: const TaskNotification('Download failed', 'Reopen Privoice to retry'),
     progressBar: true,
   );
+  await FileDownloader().configure(
+    androidConfig: [(Config.runInForeground, true)],
+  );
   final repository = await SqfliteMeetingRepository.open();
   final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);
