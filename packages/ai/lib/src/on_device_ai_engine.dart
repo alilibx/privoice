@@ -6,6 +6,7 @@ import 'action_items.dart';
 import 'ai_engine.dart';
 import 'map_reduce.dart';
 import 'prompts.dart';
+import 'title.dart';
 
 /// [AiEngine] backed by fllama (llama.cpp) running a small GGUF model fully
 /// on-device. The only file that touches fllama.
@@ -114,6 +115,17 @@ class OnDeviceAiEngine implements AiEngine {
       maxTokens: 300,
     );
     return parseActionItems(out);
+  }
+
+  @override
+  Future<String> title(String transcript) async {
+    if (transcript.trim().isEmpty) return '';
+    final out = await _run(
+      [ChatMessage.user(Prompts.title(_cap(transcript, 1500)))],
+      maxTokens: 24,
+      temperature: 0.3,
+    );
+    return cleanTitle(out);
   }
 
   @override

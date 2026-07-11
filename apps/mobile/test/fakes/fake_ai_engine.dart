@@ -6,11 +6,13 @@ class FakeAiEngine implements AiEngine {
     this.minutes = '### Summary\nFake minutes for tests.',
     this.items = const ['Alice: ship it'],
     this.answer = 'Fake answer.',
+    this.titleText = 'Fake Meeting Title',
   });
 
   final String minutes;
   final List<String> items;
   final String answer;
+  final String titleText;
 
   @override
   Future<void> warmUp() async {}
@@ -29,6 +31,9 @@ class FakeAiEngine implements AiEngine {
 
   @override
   Future<List<String>> actionItems(String source) async => items;
+
+  @override
+  Future<String> title(String transcript) async => titleText;
 
   @override
   Future<String> chat(

@@ -35,6 +35,10 @@ abstract class AiEngine {
   /// never re-summarizes internally.
   Future<List<String>> actionItems(String source);
 
+  /// A short, specific meeting title (~3–6 words, no date) derived from the
+  /// transcript. Best-effort; returns a trimmed single line.
+  Future<String> title(String transcript);
+
   /// Free-form chat grounded in [context] (e.g. the transcript + minutes).
   /// [onToken] streams the cumulative reply.
   Future<String> chat(
