@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { ragRemove } from "./rag";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const KIND_BY_EXT: Record<string, string> = {
@@ -62,11 +63,9 @@ export const remove = mutation({
     const userId = await requireUserId(ctx);
     const doc = await ctx.db.get(id);
     if (doc === null || doc.userId !== userId) throw new ConvexError("Not found");
-    const chunks = await ctx.db
-      .query("documentChunks")
-      .withIndex("by_document", (q) => q.eq("documentId", id))
-      .collect();
-    for (const c of chunks) await ctx.db.delete(c._id);
+    // documentId is the rag key within this user's namespace — see ragAdd in
+    // ingest.ts, which stores under the same (userId, documentId) pair.
+    await ragRemove(ctx, { userId, key: id });
     await ctx.storage.delete(doc.storageId);
     await ctx.db.delete(id);
   },

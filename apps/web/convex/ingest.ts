@@ -2,8 +2,7 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { chunkText } from "./lib/chunk";
-import { embedChunks } from "./lib/embed";
+import { ragAdd } from "./rag";
 import mammoth from "mammoth";
 import * as XLSX from "xlsx";
 // PDF text extraction via `unpdf` — a serverless build of pdf.js with NO
@@ -45,17 +44,17 @@ export const ingestDocument = internalAction({
       if (blob === null) throw new Error("File missing from storage");
       const buf = Buffer.from(await blob.arrayBuffer());
       const text = await extractText(doc.kind, buf);
-      const chunks = chunkText(text);
-      if (chunks.length === 0) throw new Error("No extractable text");
-      const embeddings = await embedChunks(chunks);
-      await ctx.runMutation(internal.ingestStore.insertChunks, {
-        documentId,
+      if (text.trim().length === 0) throw new Error("No extractable text");
+      // rag.add chunks (via our splitter) + embeds (via OpenRouter) + stores,
+      // keyed by documentId within this user's namespace — see rag.ts.
+      const { chunkCount } = await ragAdd(ctx, {
         userId: doc.userId,
-        chunks: chunks.map((text, i) => ({ text, embedding: embeddings[i] })),
+        key: documentId,
+        text,
       });
       await ctx.runMutation(internal.ingestStore.setReady, {
         documentId,
-        chunkCount: chunks.length,
+        chunkCount,
       });
     } catch (e) {
       await ctx.runMutation(internal.ingestStore.setFailed, {

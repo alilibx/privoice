@@ -24,18 +24,6 @@ export default defineSchema({
     chunkCount: v.number(),
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
-
-  documentChunks: defineTable({
-    userId: v.id("users"),
-    documentId: v.id("documents"),
-    chunkIndex: v.number(),
-    text: v.string(),
-    embedding: v.array(v.float64()),
-  })
-    .index("by_document", ["documentId"])
-    .vectorIndex("by_embedding", {
-      vectorField: "embedding",
-      dimensions: 3072,
-      filterFields: ["userId"],
-    }),
+  // Chunks + embeddings now live in the @convex-dev/rag component (see
+  // rag.ts), namespaced per userId — no local vector-index table needed.
 });
