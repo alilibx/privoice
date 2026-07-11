@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:privoice_core/privoice_core.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../ai_service.dart';
+import '../meeting_share.dart';
 import '../model_manager.dart';
 import '../widgets/ask_sheet.dart';
 
@@ -101,6 +103,8 @@ class _TranscriptScreenState extends State<TranscriptScreen>
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'share_minutes', child: Text('Share minutes')),
               const PopupMenuItem(value: 'share_transcript', child: Text('Share transcript')),
+              const PopupMenuItem(
+                  value: 'share_items', child: Text('Share action items')),
               const PopupMenuItem(value: 'copy_all', child: Text('Copy all')),
               const PopupMenuItem(
                   value: 'export', enabled: false, child: Text('Export (coming soon)')),
@@ -170,9 +174,16 @@ class _TranscriptScreenState extends State<TranscriptScreen>
         }
       case 'share_transcript':
         _shareText(_transcript);
+      case 'share_items':
+        final text = actionItemsAsText(_meeting.actionItems);
+        if (text.isEmpty) {
+          _snack('No action items yet.');
+        } else {
+          _shareText(text);
+        }
       case 'copy_all':
-        // Real assembly lands in Task 8; for now share minutes-or-transcript.
-        _shareText(_hasMinutes ? _meeting.minutes! : _transcript);
+        Clipboard.setData(ClipboardData(text: copyAllText(_meeting)));
+        _snack('Copied to clipboard');
     }
   }
 

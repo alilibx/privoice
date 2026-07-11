@@ -106,6 +106,18 @@ void main() {
     expect(export.enabled, isFalse);
   });
 
+  testWidgets('menu shows Share action items and Copy all', (tester) async {
+    final m = _meeting(
+        minutes: '### Summary\nx', items: const [ActionItem(text: 'Ship it')]);
+    await _pump(tester, meeting: m, repo: FakeMeetingRepository([m]));
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Share action items'), findsOneWidget);
+    expect(find.text('Copy all'), findsOneWidget);
+  });
+
   testWidgets('auto-generates minutes + items + title on open, once',
       (tester) async {
     final m = _meeting(); // no minutes
