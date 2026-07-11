@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// First-launch intro: 3 swipeable screens. The final page commits via [onDone]
+/// First-launch intro: 4 swipeable screens. The final page commits via [onDone]
 /// (also reachable via Skip). Uses the app's R1 theme tokens.
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key, required this.onDone});
@@ -33,6 +33,13 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       title: 'Getting you set up',
       body: "We're downloading your on-device models (about 1.5 GB). You can "
           "start exploring now — best on Wi-Fi.",
+    ),
+    _PageData(
+      icon: Icons.notifications_active_outlined,
+      title: 'Keep you posted',
+      body: 'We’ll show a progress notification while your models download, so '
+          'you can use other apps and it keeps going in the background. '
+          'You can allow notifications on the next screen.',
     ),
   ];
 

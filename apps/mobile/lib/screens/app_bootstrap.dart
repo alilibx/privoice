@@ -1,3 +1,4 @@
+import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:privoice_core/privoice_core.dart';
 
@@ -46,8 +47,22 @@ class _AppBootstrapState extends State<AppBootstrap> {
 
   Future<void> _finishOnboarding() async {
     await SettingsService.setOnboardingComplete(true);
+    _requestNotificationPermission(); // fire-and-forget: don't block the
+    // transition to the app on the OS permission dialog.
     _manager.ensureDefaultSet(); // fire-and-forget start
     if (mounted) setState(() => _onboarded = true);
+  }
+
+  /// Primes POST_NOTIFICATIONS so the download's progress notification can
+  /// show. Best-effort: denial, an unavailable plugin channel (e.g. in
+  /// tests), or any other failure must never block onboarding or the
+  /// download, which proceeds regardless via the foreground service.
+  Future<void> _requestNotificationPermission() async {
+    try {
+      await FileDownloader().permissions.request(PermissionType.notifications);
+    } catch (_) {
+      // best-effort; see doc comment above.
+    }
   }
 
   @override

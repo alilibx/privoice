@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 
 import 'model_spec.dart';
@@ -47,12 +47,10 @@ class ModelDownloader {
       return;
     }
     final dir = await PlatformPaths.subdir(spec.subdir);
-
     for (final file in spec.files) {
-      final dest = p.join(dir, file.fileName);
-      await _downloadFile(file, dest, spec, onProgress);
-
+      await _downloadFile(file, spec, onProgress);
       if (file.isTarBz2) {
+        final dest = p.join(dir, file.fileName);
         onProgress(_p(spec, 0.96, 'Extracting…'));
         await compute(
           _extractTarBz2,
@@ -64,10 +62,9 @@ class ModelDownloader {
     onProgress(_p(spec, 1, 'Ready'));
   }
 
-  /// Try the primary URL, then the fallback mirror if it fails.
+  /// Try the primary URL, then the fallback mirror, via the OS download engine.
   Future<void> _downloadFile(
     ModelFile file,
-    String dest,
     ModelSpec spec,
     void Function(ModelInstallProgress) onProgress,
   ) async {
@@ -75,10 +72,14 @@ class ModelDownloader {
     Object? lastError;
     for (final url in urls) {
       try {
-        await _downloadFrom(url, dest, spec, onProgress);
+        await _downloadFrom(url, file, spec, onProgress);
+        // Verify it actually landed where isInstalled/pathTo look.
+        if (!File(await pathTo(spec, file.fileName)).existsSync()) {
+          throw StateError('downloaded file missing at expected path');
+        }
         return;
       } catch (e) {
-        lastError = e; // resume/retry from the next source
+        lastError = e;
       }
     }
     throw lastError ?? StateError('download failed: ${file.fileName}');
@@ -86,41 +87,31 @@ class ModelDownloader {
 
   Future<void> _downloadFrom(
     String url,
-    String dest,
+    ModelFile file,
     ModelSpec spec,
     void Function(ModelInstallProgress) onProgress,
   ) async {
-    final client = http.Client();
-    try {
-      final file = File(dest);
-      // Resume: if a partial file exists, ask the server for the rest.
-      var existing = await file.exists() ? await file.length() : 0;
-      final req = http.Request('GET', Uri.parse(url));
-      if (existing > 0) req.headers['range'] = 'bytes=$existing-';
-
-      final resp = await client.send(req);
-      if (resp.statusCode != 200 && resp.statusCode != 206) {
-        throw HttpException('HTTP ${resp.statusCode} for $url');
-      }
-      // 206 = server honored the range (append); 200 = full body (restart).
-      final append = resp.statusCode == 206 && existing > 0;
-      if (!append) existing = 0;
-
-      final remaining = resp.contentLength ?? (spec.approxBytes - existing);
-      final total = existing + (remaining > 0 ? remaining : 1);
-      // Reserve the last 4% for extraction on archive models.
-      final ceiling = spec.files.any((f) => f.isTarBz2) ? 0.95 : 1.0;
-
-      final sink = file.openWrite(mode: append ? FileMode.append : FileMode.write);
-      var received = existing;
-      await for (final chunk in resp.stream) {
-        sink.add(chunk);
-        received += chunk.length;
-        onProgress(_p(spec, (received / total) * ceiling, 'Downloading…'));
-      }
-      await sink.close();
-    } finally {
-      client.close();
+    // Reserve the last 4% for extraction on archive models.
+    final ceiling = spec.files.any((f) => f.isTarBz2) ? 0.95 : 1.0;
+    final task = DownloadTask(
+      url: url,
+      filename: file.fileName,
+      baseDirectory: BaseDirectory.applicationSupport,
+      directory: 'models/${spec.subdir}',
+      updates: Updates.statusAndProgress,
+      retries: 3,
+      allowPause: true,
+    );
+    final result = await FileDownloader().download(
+      task,
+      onProgress: (progress) {
+        if (progress >= 0) {
+          onProgress(_p(spec, progress * ceiling, 'Downloading…'));
+        }
+      },
+    );
+    if (result.status != TaskStatus.complete) {
+      throw StateError('download ${result.status.name} for $url');
     }
   }
 

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +15,15 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FileDownloader().configureNotification(
+    running: const TaskNotification('Downloading models', '{progress}'),
+    complete: const TaskNotification('Models ready', 'Setup complete'),
+    error: const TaskNotification('Download failed', 'Reopen Privoice to retry'),
+    progressBar: true,
+  );
+  await FileDownloader().configure(
+    androidConfig: [(Config.runInForeground, true)],
+  );
   final repository = await SqfliteMeetingRepository.open();
   final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);
