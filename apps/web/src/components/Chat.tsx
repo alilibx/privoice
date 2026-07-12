@@ -50,6 +50,25 @@ export default function Chat() {
   );
   const messages = results as unknown as ChatMessage[];
 
+  // Optimistic echo: user messages sent this session show instantly, then are
+  // dropped once the server-persisted copy appears in `messages`.
+  const [pending, setPending] = useState<string[]>([]);
+  useEffect(() => {
+    setPending((prev) => {
+      if (prev.length === 0) return prev;
+      const userTexts = messages
+        .filter((m) => m.role === "user")
+        .map((m) => m.text);
+      const next = [...prev];
+      for (const t of userTexts) {
+        const i = next.indexOf(t);
+        if (i >= 0) next.splice(i, 1);
+      }
+      return next.length === prev.length ? prev : next;
+    });
+  }, [messages]);
+  useEffect(() => setPending([]), [threadId]);
+
   async function handleNewChat() {
     setError(null);
     try {
@@ -64,6 +83,7 @@ export default function Chat() {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setText("");
+    setPending((p) => [...p, trimmed]); // optimistic echo, instantly
     setSending(true);
     setError(null);
     try {
@@ -76,6 +96,13 @@ export default function Chat() {
       await sendMessage({ threadId: tid, text: trimmed });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send message");
+      setPending((p) => {
+        const i = p.indexOf(trimmed);
+        if (i < 0) return p;
+        const n = [...p];
+        n.splice(i, 1);
+        return n;
+      });
     } finally {
       setSending(false);
     }
@@ -147,6 +174,13 @@ export default function Chat() {
           )}
           {messages.map((m) => (
             <MessageBubble key={m.key} message={m} />
+          ))}
+          {pending.map((t, i) => (
+            <div key={`pending-${i}`} className="flex justify-end">
+              <div className="max-w-[80%] rounded-xl bg-primary px-4 py-2 text-white opacity-60">
+                <p className="whitespace-pre-wrap">{t}</p>
+              </div>
+            </div>
           ))}
         </div>
         {error && <p className="px-4 pb-2 text-sm text-red-600">{error}</p>}
