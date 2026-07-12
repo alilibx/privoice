@@ -12,6 +12,7 @@ export type DocumentRow = {
   status: string;
   chunkCount: number;
   error?: string;
+  contentHash?: string;
 };
 
 export default function DocumentCard({
