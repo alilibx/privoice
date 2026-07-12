@@ -4,6 +4,7 @@ import { useUIMessages } from "@convex-dev/agent/react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
+import { MODEL_META, DEFAULT_MODEL } from "../../../convex/models.shared";
 import ThreadList, { type ThreadRow } from "@/features/chat/ThreadList";
 import MessageBubble, { type ChatMessage } from "@/features/chat/MessageBubble";
 import Composer from "@/features/chat/Composer";
@@ -32,6 +33,9 @@ export default function Chat() {
     _id: string;
     status: string;
   }>;
+  const modelId = useQuery(api.settings.getSettings)?.modelId ?? DEFAULT_MODEL;
+  const modelName =
+    MODEL_META[modelId as keyof typeof MODEL_META]?.name ?? modelId;
 
   const [threadId, setThreadId] = useState<string | null>(null);
   const [text, setText] = useState("");
@@ -172,7 +176,7 @@ export default function Chat() {
             to="/settings"
             className="text-xs text-muted-foreground hover:text-foreground hover:underline"
           >
-            Model: gpt-4o-mini
+            Model: {modelName}
           </Link>
         </div>
         <div className="flex-1 space-y-3 overflow-y-auto p-4">

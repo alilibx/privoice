@@ -16,10 +16,11 @@ function renderChat() {
 const sendMessage = vi.fn(() => Promise.resolve());
 
 vi.mock("convex/react", () => ({
-  useQuery: (q: unknown) =>
-    q === api.documents.list
-      ? []
-      : [{ _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 }],
+  useQuery: (q: unknown) => {
+    if (q === api.documents.list) return [];
+    if (q === api.settings.getSettings) return { modelId: "openai/gpt-4o-mini" };
+    return [{ _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 }];
+  },
   useMutation: () => vi.fn(() => Promise.resolve()),
   useAction: () => sendMessage,
 }));
