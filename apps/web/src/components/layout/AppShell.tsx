@@ -4,13 +4,38 @@ import { cn } from "@/lib/utils";
 import Sidebar from "./Sidebar";
 import { AppShellContext } from "./app-shell-context";
 
+const HIDE_KEY = "privoice-nav-hidden";
+
+function readHidden(): boolean {
+  return typeof localStorage !== "undefined" && localStorage.getItem(HIDE_KEY) === "1";
+}
+
 export default function AppShell() {
   const [navOpen, setNavOpen] = useState(false);
+  const [navHidden, setNavHidden] = useState(readHidden);
+
+  function toggleDesktopNav() {
+    setNavHidden((prev) => {
+      const next = !prev;
+      localStorage.setItem(HIDE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
 
   return (
-    <AppShellContext.Provider value={{ openNav: () => setNavOpen(true) }}>
+    <AppShellContext.Provider
+      value={{
+        openNav: () => setNavOpen(true),
+        toggleDesktopNav,
+        desktopNavHidden: navHidden,
+      }}
+    >
       <div className="flex h-screen overflow-hidden bg-background text-foreground">
-        <Sidebar open={navOpen} onNavigate={() => setNavOpen(false)} />
+        <Sidebar
+          open={navOpen}
+          desktopHidden={navHidden}
+          onNavigate={() => setNavOpen(false)}
+        />
 
         {/* Scrim behind the mobile nav drawer. */}
         <div

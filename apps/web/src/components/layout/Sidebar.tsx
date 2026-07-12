@@ -1,8 +1,15 @@
 import { NavLink } from "react-router-dom";
-import { MessageSquare, CalendarDays, FileText, Settings } from "lucide-react";
+import {
+  MessageSquare,
+  CalendarDays,
+  FileText,
+  Settings,
+  PanelLeftClose,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import BrandMark from "./BrandMark";
 import UserMenu from "./UserMenu";
+import { useAppShell } from "./app-shell-context";
 
 const NAV_ITEMS = [
   { to: "/chat", label: "Chat", icon: MessageSquare },
@@ -18,17 +25,23 @@ const NAV_ITEMS = [
  */
 export default function Sidebar({
   open,
+  desktopHidden = false,
   onNavigate,
 }: {
   open: boolean;
+  desktopHidden?: boolean;
   onNavigate?: () => void;
 }) {
+  const { toggleDesktopNav } = useAppShell();
   return (
     <aside
       className={cn(
         "fixed inset-y-0 left-0 z-40 flex w-[264px] flex-col border-r bg-sidebar text-sidebar-foreground transition-transform duration-300 ease-out",
-        "lg:static lg:z-auto lg:w-[248px] lg:translate-x-0 lg:shadow-none",
         open ? "translate-x-0 shadow-2xl" : "-translate-x-full",
+        // On lg+: shown as a static column, or fully hidden when collapsed.
+        desktopHidden
+          ? "lg:hidden"
+          : "lg:static lg:z-auto lg:w-[248px] lg:translate-x-0 lg:shadow-none",
       )}
     >
       <div className="flex h-16 items-center gap-2.5 px-5">
@@ -36,6 +49,15 @@ export default function Sidebar({
         <span className="font-display text-[22px] font-semibold tracking-tight">
           Privoice
         </span>
+        <button
+          type="button"
+          aria-label="Hide sidebar"
+          title="Hide sidebar"
+          onClick={toggleDesktopNav}
+          className="ml-auto hidden h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground lg:grid"
+        >
+          <PanelLeftClose className="h-[18px] w-[18px]" />
+        </button>
       </div>
 
       <nav className="flex-1 space-y-0.5 px-3 pt-2">

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { useUIMessages } from "@convex-dev/agent/react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Menu, MessagesSquare } from "lucide-react";
+import { Menu, MessagesSquare, PanelLeft } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { MODEL_META, DEFAULT_MODEL } from "../../../convex/models.shared";
 import { useAppShell } from "@/components/layout/app-shell-context";
@@ -33,8 +33,10 @@ const SUGGESTIONS = [
   "List the action items across everything I've uploaded",
 ];
 
+const RAIL_HIDE_KEY = "privoice-rail-hidden";
+
 export default function Chat() {
-  const { openNav } = useAppShell();
+  const { openNav, toggleDesktopNav, desktopNavHidden } = useAppShell();
   const threads = (useQuery(api.chat.listThreads) ?? []) as ThreadRow[];
   const createThread = useMutation(api.chat.createThread);
   const sendMessage = useAction(api.chat.sendMessage);
@@ -54,6 +56,17 @@ export default function Chat() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [railOpen, setRailOpen] = useState(false);
+  const [railHidden, setRailHidden] = useState(
+    () => typeof localStorage !== "undefined" && localStorage.getItem(RAIL_HIDE_KEY) === "1",
+  );
+
+  function toggleRail() {
+    setRailHidden((prev) => {
+      const next = !prev;
+      localStorage.setItem(RAIL_HIDE_KEY, next ? "1" : "0");
+      return next;
+    });
+  }
 
   // Auto-select the most recent thread once the list loads, so the chat
   // opens straight into a conversation instead of an empty picker.
@@ -184,7 +197,9 @@ export default function Chat() {
         onSelect={selectThread}
         onNewChat={() => void handleNewChat()}
         open={railOpen}
+        desktopHidden={railHidden}
         onClose={() => setRailOpen(false)}
+        onCollapse={toggleRail}
       />
 
       {/* Scrim for the conversation-rail drawer (mobile). */}
@@ -223,10 +238,35 @@ export default function Chat() {
         </header>
 
         {/* Desktop header */}
-        <header className="hidden h-16 shrink-0 items-center justify-between gap-3 border-b bg-background/60 px-6 backdrop-blur-xl lg:flex">
-          <h2 className="min-w-0 truncate font-display text-lg font-semibold tracking-tight">
-            {activeTitle}
-          </h2>
+        <header className="hidden h-16 shrink-0 items-center justify-between gap-3 border-b bg-background/60 px-4 backdrop-blur-xl lg:flex">
+          <div className="flex min-w-0 items-center gap-1">
+            {desktopNavHidden && (
+              <button
+                type="button"
+                aria-label="Show sidebar"
+                title="Show sidebar"
+                onClick={toggleDesktopNav}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <PanelLeft className="h-[18px] w-[18px]" />
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label={railHidden ? "Show conversations" : "Hide conversations"}
+              title={railHidden ? "Show conversations" : "Hide conversations"}
+              onClick={toggleRail}
+              className={cn(
+                "grid h-9 w-9 shrink-0 place-items-center rounded-lg hover:bg-accent hover:text-foreground",
+                railHidden ? "text-muted-foreground" : "text-foreground",
+              )}
+            >
+              <MessagesSquare className="h-[18px] w-[18px]" />
+            </button>
+            <h2 className="min-w-0 truncate pl-1 font-display text-lg font-semibold tracking-tight">
+              {activeTitle}
+            </h2>
+          </div>
           <Link
             to="/settings"
             className="inline-flex items-center gap-1.5 rounded-full border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-foreground"

@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Plus, X, PanelLeftClose } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ThreadRow = {
@@ -26,21 +26,27 @@ export default function ThreadList({
   onSelect,
   onNewChat,
   open,
+  desktopHidden = false,
   onClose,
+  onCollapse,
 }: {
   threads: ThreadRow[];
   activeThreadId: string | null;
   onSelect: (threadId: string) => void;
   onNewChat: () => void;
   open: boolean;
+  desktopHidden?: boolean;
   onClose: () => void;
+  onCollapse?: () => void;
 }) {
   return (
     <div
       className={cn(
         "fixed inset-y-0 left-0 z-40 flex w-[288px] flex-col border-r bg-background transition-transform duration-300 ease-out",
-        "lg:static lg:z-auto lg:w-72 lg:translate-x-0 lg:bg-background/40 lg:shadow-none",
         open ? "translate-x-0 shadow-2xl" : "-translate-x-full",
+        desktopHidden
+          ? "lg:hidden"
+          : "lg:static lg:z-auto lg:w-72 lg:translate-x-0 lg:bg-background/40 lg:shadow-none",
       )}
     >
       <div className="flex items-center gap-2 p-3">
@@ -59,6 +65,15 @@ export default function ThreadList({
           className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border text-muted-foreground hover:bg-accent lg:hidden"
         >
           <X className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Hide conversations"
+          title="Hide conversations"
+          onClick={onCollapse}
+          className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl border text-muted-foreground hover:bg-accent lg:grid"
+        >
+          <PanelLeftClose className="h-4 w-4" />
         </button>
       </div>
 
