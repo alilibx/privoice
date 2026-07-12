@@ -250,3 +250,67 @@ test("attachment golden: pinned doc-new is sources[0] on a vague query", async (
     expect(ALL_SEEDED_IDS.has(s.sourceId)).toBe(true);
   }
 });
+
+// ---------------------------------------------------------------------------
+// 4. BM25-only recall — makes the REAL bm25 arm the sole decider.
+//
+// The recall@k test above always runs the real bm25 arm (deps.bm25 is left
+// undefined there too), but it also runs the deterministic keyword-overlap
+// `vector` stand-in, which alone resolves all 4 fixtures (verified manually:
+// forcing `deps.bm25: async () => []` still yields 4/4 recall on that test).
+// So a regression in the *real* BM25 path — `bm25Candidates` ->
+// `internal.knowledge.searchQuery` -> `bm25Search` over the `by_text` search
+// index, plus the `${entryId}:${chunkIndex}` fusion-key shape — would pass
+// silently there.
+//
+// Here `deps.vector` is forced to return [] (vector arm dead), so ONLY the
+// real BM25 arm can produce candidates. The query term
+// ("benefits enrollment eligibility") is chosen because "benefits",
+// "enrollment", and "eligibility" each appear in exactly one seeded chunk
+// (doc-onboarding's second chunk) across the whole corpus, so real
+// `bm25Search`'s full-text index resolves it unambiguously. If any part of
+// the real BM25 path were broken, this would fail with sources: [].
+test("BM25-only recall: real BM25 arm alone resolves the expected source", async () => {
+  const { t, userId } = await setup();
+
+  const result = await t.action(async (ctx) =>
+    retrieve(ctx, {
+      userId,
+      query: "benefits enrollment eligibility",
+      pinnedSourceIds: [],
+      cfg: OFFLINE_CFG,
+      deps: { vector: async () => [] },
+    }),
+  );
+
+  const sourceIds = result.sources.map((s) => s.sourceId);
+  expect(sourceIds, `expected "doc-onboarding" via real BM25 alone, got ${JSON.stringify(sourceIds)}`).toContain(
+    "doc-onboarding",
+  );
+});
+
+// Symmetric guard: vector-only recall, with the real BM25 arm forced dead.
+// Cheap to add since `keywordOverlapVector` is already deterministic and
+// exercised elsewhere — this just confirms the vector arm alone is also
+// load-bearing (not required by the review finding, but free coverage).
+test("vector-only recall: deterministic vector arm alone resolves the expected source", async () => {
+  const { t, userId } = await setup();
+
+  const result = await t.action(async (ctx) =>
+    retrieve(ctx, {
+      userId,
+      query: "revenue growth",
+      pinnedSourceIds: [],
+      cfg: OFFLINE_CFG,
+      deps: {
+        vector: keywordOverlapVector(CORPUS),
+        bm25: async () => [],
+      },
+    }),
+  );
+
+  const sourceIds = result.sources.map((s) => s.sourceId);
+  expect(sourceIds, `expected "doc-finance" via vector alone, got ${JSON.stringify(sourceIds)}`).toContain(
+    "doc-finance",
+  );
+});
