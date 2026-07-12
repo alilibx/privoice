@@ -77,8 +77,8 @@ export const searchQuery = internalQuery({
 
 /**
  * Concatenated chunk text for one user-owned source, in chunk order — used
- * by tools.ts's `pinpoint` to regex-search within a single known source
- * (e.g. one document or meeting) rather than across the whole corpus.
+ * by tools.ts's `readDocument` (positional read) and scoped `grep` to work
+ * within a single known source (e.g. one document or meeting).
  * Scoped via `by_user_sourceId` on (userId, sourceId), so a caller can never
  * read another user's chunks even if it somehow guessed a valid sourceId.
  * Returns "" if the user has no chunks for that sourceId.

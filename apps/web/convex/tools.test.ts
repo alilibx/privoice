@@ -1,4 +1,4 @@
-// Unit tests for the searchKnowledge/pinpoint agent tools' userId
+// Unit tests for the searchKnowledge/grep agent tools' userId
 // resolution — the single most security-critical piece of Retrieval v2's
 // Task 7: these tools must always scope to the AUTHENTICATED CALLER's
 // userId (injected by the agent runtime onto `ctx.userId`, see chat.ts's
@@ -13,7 +13,7 @@
 // (carrying `userId`) onto the tool object, then invoke `execute` as a
 // method so `this.ctx` resolves to it.
 import { beforeEach, expect, test, vi } from "vitest";
-import { searchKnowledge, pinpoint } from "./tools";
+import { searchKnowledge, grep } from "./tools";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -72,61 +72,83 @@ test("searchKnowledge fails closed when ctx carries no userId", async () => {
   expect(runQuery).not.toHaveBeenCalled();
 });
 
-test("pinpoint scopes its runQuery to ctx.userId", async () => {
+test("grep (scoped) returns matched line + context, numbered, scoped to ctx.userId", async () => {
   const runQuery = vi.fn(
     async (_ref: unknown, _args: { userId: string; sourceId: string }) =>
-      `line one\nline two\nDate: 2024-05-01\nline four\nline five`,
+      "line one\nline two\nDate: 2024-05-01\nline four\nline five",
   );
-  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
+  const tool = withCtx(grep, { userId: "bob_id", runQuery });
   const result = await tool.execute!(
-    { sourceId: "doc1", pattern: "Date:" },
-    { toolCallId: "t3", messages: [] } as any,
+    { pattern: "Date:", sourceId: "d1" },
+    { toolCallId: "g1", messages: [] } as any,
   );
-  expect(runQuery).toHaveBeenCalledTimes(1);
   const [, args] = runQuery.mock.calls[0];
-  expect(args).toEqual({ userId: "bob_id", sourceId: "doc1" });
+  expect(args).toEqual({ userId: "bob_id", sourceId: "d1" });
   expect(result).toContain("Date: 2024-05-01");
+  expect(result).toContain("3  Date: 2024-05-01"); // line number present
+  expect(result).toContain("d1:"); // coordinate header
 });
 
-test("pinpoint returns a friendly message when nothing matches", async () => {
-  const runQuery = vi.fn(async () => "line one\nline two\nline three");
-  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
+test("grep (corpus) searches all sources and labels each hit with title:line", async () => {
+  const runQuery = vi.fn(async (_ref: unknown, _args: { userId: string }) => [
+    { sourceId: "d1", title: "Contract A", source: "document", text: "foo\nindemnity clause\nbar" },
+    { sourceId: "d2", title: "Contract B", source: "document", text: "nothing here" },
+    { sourceId: "d3", title: "Contract C", source: "document", text: "more indemnity talk" },
+  ]);
+  const tool = withCtx(grep, { userId: "bob_id", runQuery });
   const result = await tool.execute!(
-    { sourceId: "doc1", pattern: "nomatch-xyz" },
-    { toolCallId: "t4", messages: [] } as any,
+    { pattern: "indemnity" },
+    { toolCallId: "g2", messages: [] } as any,
+  );
+  const [, args] = runQuery.mock.calls[0];
+  expect(args).toEqual({ userId: "bob_id" });
+  expect(result).toContain("Contract A:");
+  expect(result).toContain("indemnity clause");
+  expect(result).toContain("Contract C:");
+  expect(result).not.toContain("Contract B:"); // no match there
+});
+
+test("grep returns a friendly message when nothing matches", async () => {
+  const runQuery = vi.fn(async () => [
+    { sourceId: "d1", title: "Doc", source: "document", text: "alpha\nbeta" },
+  ]);
+  const tool = withCtx(grep, { userId: "bob_id", runQuery });
+  const result = await tool.execute!(
+    { pattern: "nomatch-xyz" },
+    { toolCallId: "g3", messages: [] } as any,
   );
   expect(result).toBe("No matches found.");
 });
 
-test("pinpoint returns a friendly message for an invalid regex pattern", async () => {
-  const runQuery = vi.fn(async () => "line one\nline two");
-  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
+test("grep returns a friendly message for an invalid regex", async () => {
+  const runQuery = vi.fn(async () => [
+    { sourceId: "d1", title: "Doc", source: "document", text: "alpha" },
+  ]);
+  const tool = withCtx(grep, { userId: "bob_id", runQuery });
   const result = await tool.execute!(
-    { sourceId: "doc1", pattern: "(unterminated" },
-    { toolCallId: "t5", messages: [] } as any,
+    { pattern: "(unterminated" },
+    { toolCallId: "g4", messages: [] } as any,
   );
   expect(result).toBe("Invalid search pattern.");
 });
 
-test("pinpoint rejects an over-long pattern before compiling or querying (ReDoS hardening)", async () => {
-  const runQuery = vi.fn(async () => "line one\nline two");
-  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
-  const longPattern = "a".repeat(201);
+test("grep rejects an over-long pattern before compiling or querying (ReDoS hardening)", async () => {
+  const runQuery = vi.fn();
+  const tool = withCtx(grep, { userId: "bob_id", runQuery });
   const result = await tool.execute!(
-    { sourceId: "doc1", pattern: longPattern },
-    { toolCallId: "t7", messages: [] } as any,
+    { pattern: "a".repeat(201) },
+    { toolCallId: "g5", messages: [] } as any,
   );
   expect(result).toBe("Search pattern too long.");
-  // Cheap: rejected before ever touching the DB.
   expect(runQuery).not.toHaveBeenCalled();
 });
 
-test("pinpoint fails closed when ctx carries no userId", async () => {
+test("grep fails closed when ctx carries no userId", async () => {
   const runQuery = vi.fn();
-  const tool = withCtx(pinpoint, { runQuery });
+  const tool = withCtx(grep, { runQuery });
   await expect(
-    tool.execute!({ sourceId: "doc1", pattern: "x" }, { toolCallId: "t6", messages: [] } as any),
-  ).rejects.toThrow();
+    tool.execute!({ pattern: "x" }, { toolCallId: "g6", messages: [] } as any),
+  ).rejects.toThrow(/authenticated user/i);
   expect(runQuery).not.toHaveBeenCalled();
 });
 
@@ -155,7 +177,10 @@ test("listDocuments fails closed without a caller in scope", async () => {
 });
 
 test("readDocument returns just line 1, numbered, with a range header (first-line case)", async () => {
-  const runQuery = vi.fn(async () => "first line\nsecond line\nthird line");
+  const runQuery = vi.fn(
+    async (_ref: unknown, _args: { userId: string; sourceId: string }) =>
+      "first line\nsecond line\nthird line",
+  );
   const { readDocument } = await import("./tools");
   const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
   const result = await tool.execute!(
@@ -212,10 +237,10 @@ test("readDocument truncates output past the char cap", async () => {
   const runQuery = vi.fn(async () => giant);
   const { readDocument } = await import("./tools");
   const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
-  const result = await tool.execute!(
+  const result = (await tool.execute!(
     { sourceId: "d1" },
     { toolCallId: "r5", messages: [] } as any,
-  );
+  )) as string;
   expect(result.length).toBeLessThanOrEqual(8192 + "\n… (truncated)".length);
   expect(result.endsWith("… (truncated)")).toBe(true);
 });
