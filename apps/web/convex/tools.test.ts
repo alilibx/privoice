@@ -153,3 +153,90 @@ test("listDocuments fails closed without a caller in scope", async () => {
     tool.execute!({}, { toolCallId: "t1", messages: [] } as any),
   ).rejects.toThrow(/authenticated user/i);
 });
+
+test("readDocument returns just line 1, numbered, with a range header (first-line case)", async () => {
+  const runQuery = vi.fn(async () => "first line\nsecond line\nthird line");
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "d1", startLine: 1, maxLines: 1 },
+    { toolCallId: "r1", messages: [] } as any,
+  );
+  const [, args] = runQuery.mock.calls[0];
+  expect(args).toEqual({ userId: "alice_id", sourceId: "d1" });
+  expect(result).toContain("lines 1–1 of 3:");
+  expect(result).toContain("1  first line");
+  expect(result).not.toContain("second line");
+});
+
+test("readDocument returns the requested window with correct numbering", async () => {
+  const runQuery = vi.fn(async () => "a\nb\nc\nd\ne");
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "d1", startLine: 2, maxLines: 2 },
+    { toolCallId: "r2", messages: [] } as any,
+  );
+  expect(result).toContain("2  b");
+  expect(result).toContain("3  c");
+  expect(result).not.toContain("4  d");
+});
+
+test("readDocument clamps maxLines above the ceiling and coerces startLine below 1", async () => {
+  const runQuery = vi.fn(async () => Array.from({ length: 500 }, (_, i) => `L${i + 1}`).join("\n"));
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "d1", startLine: 0, maxLines: 9999 },
+    { toolCallId: "r3", messages: [] } as any,
+  );
+  expect(result).toContain("lines 1–200 of 500:");
+  expect(result).toContain("1  L1");
+  expect(result).toContain("200  L200");
+  expect(result).not.toContain("201  L201");
+});
+
+test("readDocument reports when startLine is past the end", async () => {
+  const runQuery = vi.fn(async () => "only\ntwo");
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "d1", startLine: 5 },
+    { toolCallId: "r4", messages: [] } as any,
+  );
+  expect(result).toBe("Document has only 2 lines.");
+});
+
+test("readDocument truncates output past the char cap", async () => {
+  const giant = "x".repeat(20000);
+  const runQuery = vi.fn(async () => giant);
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "d1" },
+    { toolCallId: "r5", messages: [] } as any,
+  );
+  expect(result.length).toBeLessThanOrEqual(8192 + "\n… (truncated)".length);
+  expect(result.endsWith("… (truncated)")).toBe(true);
+});
+
+test("readDocument returns a friendly message for an empty/missing document", async () => {
+  const runQuery = vi.fn(async () => "");
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { userId: "alice_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "nope" },
+    { toolCallId: "r6", messages: [] } as any,
+  );
+  expect(result).toBe("No content found for that document.");
+});
+
+test("readDocument fails closed without a caller in scope", async () => {
+  const runQuery = vi.fn();
+  const { readDocument } = await import("./tools");
+  const tool = withCtx(readDocument, { runQuery });
+  await expect(
+    tool.execute!({ sourceId: "d1" }, { toolCallId: "r7", messages: [] } as any),
+  ).rejects.toThrow(/authenticated user/i);
+  expect(runQuery).not.toHaveBeenCalled();
+});

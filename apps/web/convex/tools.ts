@@ -84,6 +84,42 @@ export const listDocuments = createTool({
   },
 });
 
+const READ_MAX_LINES = 200;
+const READ_MAX_CHARS = 8192;
+
+export const readDocument = createTool({
+  description:
+    "Read a specific range of lines from ONE known document or meeting by its sourceId, returned with line numbers. Read positionally — e.g. the first line (startLine 1, maxLines 1), an intro, or to expand around a grep match. Not for searching: use grep or searchKnowledge to find things first.",
+  inputSchema: z.object({
+    sourceId: z.string().describe("The sourceId of the document or meeting to read"),
+    startLine: z.number().optional().describe("1-indexed line to start at (default 1)"),
+    maxLines: z.number().optional().describe("How many lines to return (default 50, max 200)"),
+  }),
+  execute: async (ctx, { sourceId, startLine, maxLines }): Promise<string> => {
+    const userId = requireCallerUserId(ctx);
+    const text: string = await ctx.runQuery(internal.knowledge.linesFor, {
+      userId: userId as Id<"users">,
+      sourceId,
+    });
+    if (!text) return "No content found for that document.";
+    const lines = text.split("\n");
+    const start = Math.max(1, Math.floor(startLine ?? 1));
+    const count = Math.min(READ_MAX_LINES, Math.max(1, Math.floor(maxLines ?? 50)));
+    if (start > lines.length) return `Document has only ${lines.length} lines.`;
+    const end = Math.min(lines.length, start - 1 + count);
+    const width = String(end).length;
+    const body = lines
+      .slice(start - 1, end)
+      .map((line, i) => `${String(start + i).padStart(width)}  ${line}`)
+      .join("\n");
+    let out = `lines ${start}–${end} of ${lines.length}:\n${body}`;
+    if (out.length > READ_MAX_CHARS) {
+      out = out.slice(0, READ_MAX_CHARS) + "\n… (truncated)";
+    }
+    return out;
+  },
+});
+
 const CONTEXT_LINES = 2;
 const MAX_WINDOWS = 40;
 // Security hardening: cap the model-supplied regex pattern length BEFORE
