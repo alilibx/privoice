@@ -15,6 +15,7 @@ import type * as documents from "../documents.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as ingestStore from "../ingestStore.js";
+import type * as knowledge from "../knowledge.js";
 import type * as lib_chunk from "../lib/chunk.js";
 import type * as meetings from "../meetings.js";
 import type * as openrouter from "../openrouter.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   ingest: typeof ingest;
   ingestStore: typeof ingestStore;
+  knowledge: typeof knowledge;
   "lib/chunk": typeof lib_chunk;
   meetings: typeof meetings;
   openrouter: typeof openrouter;

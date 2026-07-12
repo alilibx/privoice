@@ -52,4 +52,23 @@ export default defineSchema({
     modelId: v.string(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  // Retrieval v2: mirrors chunk text (from documents/meetings) into a Convex
+  // full-text-searchable table. This is the BM25 arm of the hybrid pipeline;
+  // later tasks fuse these hits with vector search results in candidates.ts.
+  knowledgeChunks: defineTable({
+    userId: v.id("users"),
+    entryId: v.string(),
+    source: v.string(), // "document" | "meeting"
+    sourceId: v.string(),
+    title: v.string(),
+    chunkText: v.string(),
+    chunkIndex: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_source", ["userId", "source", "sourceId"])
+    .searchIndex("by_text", {
+      searchField: "chunkText",
+      filterFields: ["userId", "source"],
+    }),
 });
