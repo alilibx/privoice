@@ -67,10 +67,12 @@ export const listDocuments = createTool({
   execute: async (ctx): Promise<string> => {
     const userId = requireCallerUserId(ctx);
     const docs: Array<{
+      sourceId: string;
       filename: string;
       kind: string;
       status: string;
       sizeBytes: number;
+      lineCount: number;
       createdAt: number;
     }> = await ctx.runQuery(internal.documents.listForUser, {
       userId: userId as Id<"users">,
@@ -78,7 +80,7 @@ export const listDocuments = createTool({
     if (docs.length === 0) return "The user has no uploaded documents.";
     const lines = docs.map(
       (d) =>
-        `- ${d.filename} (${d.kind}, ${formatBytes(d.sizeBytes)}${d.status !== "ready" ? `, ${d.status}` : ""})`,
+        `- ${d.filename} (${d.kind}, ${formatBytes(d.sizeBytes)}, ${d.lineCount} lines${d.status !== "ready" ? `, ${d.status}` : ""}) [id: ${d.sourceId}]`,
     );
     return `The user has ${docs.length} document${docs.length === 1 ? "" : "s"}:\n${lines.join("\n")}`;
   },
