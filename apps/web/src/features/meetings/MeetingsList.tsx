@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import PageHeader from "@/components/layout/PageHeader";
 import MeetingCard, { type Meeting } from "@/features/meetings/MeetingCard";
 import NewMeetingDialog from "@/features/meetings/NewMeetingDialog";
 
@@ -27,21 +28,27 @@ export default function MeetingsList() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
-        <NewMeetingDialog onCreate={handleCreate} />
-      </header>
-
-      {meetings.length === 0 ? (
-        <p className="mt-8 text-center text-muted-foreground">No meetings yet</p>
-      ) : (
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {meetings.map((m) => (
-            <MeetingCard key={m._id} meeting={m} onDelete={(id) => void handleDelete(id)} />
-          ))}
+    <div className="flex h-full flex-col">
+      <PageHeader title="Meetings" actions={<NewMeetingDialog onCreate={handleCreate} />} />
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl p-4 sm:p-6">
+          {meetings.length === 0 ? (
+            <p className="mt-16 text-center text-muted-foreground">
+              No meetings yet
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {meetings.map((m) => (
+                <MeetingCard
+                  key={m._id}
+                  meeting={m}
+                  onDelete={(id) => void handleDelete(id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </main>
+      </div>
+    </div>
   );
 }

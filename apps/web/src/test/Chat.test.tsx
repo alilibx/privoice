@@ -68,7 +68,9 @@ beforeEach(() => {
 
 test("renders thread list, streamed messages, and the attach input", () => {
   renderChat();
-  expect(screen.getByText("Q3 planning")).toBeInTheDocument();
+  // The active conversation's title renders in the rail and in the header, so
+  // it legitimately appears more than once — assert it's present at all.
+  expect(screen.getAllByText("Q3 planning").length).toBeGreaterThan(0);
   expect(screen.getByRole("button", { name: /new chat/i })).toBeInTheDocument();
   expect(screen.getByText("What does the Q3 doc say?")).toBeInTheDocument();
   expect(screen.getByText("Revenue grew 12%.")).toBeInTheDocument();

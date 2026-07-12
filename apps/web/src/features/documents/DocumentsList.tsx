@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import PageHeader from "@/components/layout/PageHeader";
 import DocumentCard, { type DocumentRow } from "@/features/documents/DocumentCard";
 import UploadDropzone from "@/features/documents/UploadDropzone";
 
@@ -45,22 +46,28 @@ export default function DocumentsList() {
   }
 
   return (
-    <section className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-bold text-foreground">Documents</h1>
-
-      <div className="mt-6">
-        <UploadDropzone onFile={(f) => void upload(f)} busy={busy} />
-      </div>
-
-      {docs.length === 0 ? (
-        <p className="mt-8 text-center text-muted-foreground">No documents yet</p>
-      ) : (
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {docs.map((d) => (
-            <DocumentCard key={d._id} doc={d} onDelete={(id) => void handleDelete(id)} />
-          ))}
+    <div className="flex h-full flex-col">
+      <PageHeader title="Documents" />
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl p-4 sm:p-6">
+          <UploadDropzone onFile={(f) => void upload(f)} busy={busy} />
+          {docs.length === 0 ? (
+            <p className="mt-16 text-center text-muted-foreground">
+              No documents yet
+            </p>
+          ) : (
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {docs.map((d) => (
+                <DocumentCard
+                  key={d._id}
+                  doc={d}
+                  onDelete={(id) => void handleDelete(id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </section>
+      </div>
+    </div>
   );
 }

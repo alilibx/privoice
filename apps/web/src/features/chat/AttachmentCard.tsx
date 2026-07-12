@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { fileIcon, humanSize } from "@/lib/file-icons";
+import { cn } from "@/lib/utils";
 
 export type Attachment = {
   docId: string;
@@ -13,16 +13,24 @@ export type AttachmentStatus = "parsing" | "ready" | "failed";
 
 function StatusPill({ status }: { status: AttachmentStatus }) {
   if (status === "ready") {
-    return <Badge variant="success">Ready</Badge>;
+    return (
+      <span className="inline-flex items-center rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+        Ready
+      </span>
+    );
   }
   if (status === "failed") {
-    return <Badge variant="destructive">Failed</Badge>;
+    return (
+      <span className="inline-flex items-center rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-semibold text-destructive">
+        Failed
+      </span>
+    );
   }
   return (
-    <Badge variant="secondary" className="gap-1">
-      <Loader2 className="size-3 animate-spin" />
+    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+      <Loader2 className="h-3 w-3 animate-spin" />
       Parsing…
-    </Badge>
+    </span>
   );
 }
 
@@ -35,12 +43,12 @@ export default function AttachmentCard({
 }) {
   const { Icon, className } = fileIcon(attachment.kind);
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm">
-      <Icon className={`size-5 shrink-0 ${className}`} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-foreground">{attachment.filename}</p>
-        <p className="text-xs text-muted-foreground">{humanSize(attachment.sizeBytes)}</p>
-      </div>
+    <div className="inline-flex items-center gap-2 rounded-xl border bg-card px-2.5 py-1.5 text-sm shadow-sm">
+      <Icon className={cn("h-4 w-4 shrink-0", className)} />
+      <span className="max-w-[160px] truncate font-medium text-foreground">
+        {attachment.filename}
+      </span>
+      <span className="text-xs text-muted-foreground">{humanSize(attachment.sizeBytes)}</span>
       <StatusPill status={status} />
     </div>
   );

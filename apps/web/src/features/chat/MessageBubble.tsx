@@ -1,6 +1,6 @@
 import { useSmoothText } from "@convex-dev/agent/react";
 import ToolTrace, { type ToolPart } from "@/features/chat/ToolTrace";
-import { cn } from "@/lib/utils";
+import BrandMark from "@/components/layout/BrandMark";
 
 export type ChatMessage = {
   key: string;
@@ -31,20 +31,27 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
     !hasPendingTool;
   if (isEmptyToolTurn) return null;
 
-  return (
-    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
-      <div className={cn("max-w-[80%]", !isUser && "w-full")}>
-        {!isUser && <ToolTrace parts={message.parts} />}
-        <div
-          className={cn(
-            "rounded-xl px-4 py-2",
-            isUser
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-foreground",
-          )}
-        >
+  if (isUser) {
+    return (
+      <div className="msg-in flex justify-end">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-relaxed text-primary-foreground shadow-sm sm:max-w-[78%]">
           <p className="whitespace-pre-wrap">{visibleText}</p>
         </div>
+      </div>
+    );
+  }
+
+  const hasText = (visibleText ?? "").trim() !== "";
+  return (
+    <div className="msg-in flex gap-3 sm:gap-4">
+      <BrandMark className="mt-0.5 h-8 w-8 shrink-0" />
+      <div className="min-w-0 flex-1 space-y-3">
+        <ToolTrace parts={message.parts} />
+        {hasText && (
+          <div className="whitespace-pre-wrap text-[15px] leading-7 text-foreground">
+            {visibleText}
+          </div>
+        )}
       </div>
     </div>
   );

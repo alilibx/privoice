@@ -7,6 +7,11 @@ import { ThemeProvider } from "@/lib/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import App from "./App";
+// Self-hosted variable fonts (privacy: no Google Fonts CDN). Fraunces =
+// display, Hanken Grotesk = UI/body, JetBrains Mono = tool args / model ids.
+import "@fontsource-variable/fraunces";
+import "@fontsource-variable/hanken-grotesk";
+import "@fontsource-variable/jetbrains-mono";
 import "./index.css";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);

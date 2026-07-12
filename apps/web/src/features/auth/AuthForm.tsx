@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import BrandMark from "@/components/layout/BrandMark";
 
 // Convex Auth's Password provider requires at least 8 characters.
 const MIN_PASSWORD = 8;
@@ -41,14 +42,21 @@ export default function AuthForm() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>
-            <h1 className="text-2xl font-bold text-primary">Privoice</h1>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+    <main className="chat-canvas grid min-h-screen place-items-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <BrandMark className="h-12 w-12" />
+          <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight">
+            Privoice
+          </h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {flow === "signIn"
+              ? "Sign in to your private workspace"
+              : "Create your private workspace"}
+          </p>
+        </div>
+        <Card className="w-full">
+        <CardContent className="pt-6">
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="auth-email">Email</Label>
@@ -95,7 +103,8 @@ export default function AuthForm() {
             </Button>
           </form>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </main>
   );
 }

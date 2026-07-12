@@ -20,6 +20,11 @@ export default {
         sidebar: { DEFAULT: "hsl(var(--sidebar))", foreground: "hsl(var(--sidebar-foreground))" },
       },
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 4px)", sm: "calc(var(--radius) - 8px)" },
+      fontFamily: {
+        display: ['"Fraunces Variable"', "Fraunces", "serif"],
+        sans: ['"Hanken Grotesk Variable"', "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono Variable"', "ui-monospace", "monospace"],
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
