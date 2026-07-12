@@ -161,7 +161,7 @@ export default function Chat() {
   }
 
   return (
-    <section className="mx-auto flex h-[calc(100vh-96px)] max-w-4xl gap-4 p-6">
+    <section className="mx-auto flex h-full max-w-4xl gap-4 p-6">
       <ThreadList
         threads={threads}
         activeThreadId={threadId}

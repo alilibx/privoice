@@ -94,7 +94,7 @@ export default function ToolTrace({ parts }: { parts: ToolPart[] }) {
       <Separator className="my-1" />
       <div>
         {steps.map((part, i) => (
-          <Step key={i} part={part} />
+          <Step key={`${part.type}-${i}`} part={part} />
         ))}
       </div>
     </div>

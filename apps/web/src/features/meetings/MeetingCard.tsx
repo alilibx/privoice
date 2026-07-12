@@ -6,7 +6,6 @@ export type Meeting = {
   _id: string;
   title: string;
   createdAt: number;
-  status?: string;
 };
 
 export default function MeetingCard({

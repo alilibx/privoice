@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
+import { getFunctionName } from "convex/server";
 import Chat from "@/features/chat/Chat";
 import { useUIMessages } from "@convex-dev/agent/react";
 import { api } from "../../convex/_generated/api";
@@ -16,9 +17,10 @@ function renderChat() {
 const sendMessage = vi.fn(() => Promise.resolve());
 
 vi.mock("convex/react", () => ({
-  useQuery: (q: unknown) => {
-    if (q === api.documents.list) return [];
-    if (q === api.settings.getSettings) return { modelId: "openai/gpt-4o-mini" };
+  useQuery: (q: Parameters<typeof getFunctionName>[0]) => {
+    if (getFunctionName(q) === getFunctionName(api.documents.list)) return [];
+    if (getFunctionName(q) === getFunctionName(api.settings.getSettings))
+      return { modelId: "openai/gpt-4o-mini" };
     return [{ _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 }];
   },
   useMutation: () => vi.fn(() => Promise.resolve()),
@@ -105,5 +107,5 @@ test("shows a searching-documents affordance while a tool call is in progress", 
   } as any);
 
   renderChat();
-  expect(screen.getByText(/searching your documents/i)).toBeInTheDocument();
+  expect(screen.getByText(/searched your documents/i)).toBeInTheDocument();
 });

@@ -15,7 +15,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
     startStreaming: message.status === "streaming",
   });
   const isUser = message.role === "user";
-  const pendingTool = (message.parts ?? []).find(
+  const hasPendingTool = (message.parts ?? []).some(
     (p) =>
       p.type.startsWith("tool-") &&
       p.state !== "output-available" &&
@@ -28,7 +28,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
     !isUser &&
     (message.text ?? "").trim() === "" &&
     message.status !== "streaming" &&
-    !pendingTool;
+    !hasPendingTool;
   if (isEmptyToolTurn) return null;
 
   return (
@@ -43,11 +43,6 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
               : "bg-muted text-foreground",
           )}
         >
-          {pendingTool && (
-            <p className="mb-1 text-xs italic text-muted-foreground">
-              Searching your documents…
-            </p>
-          )}
           <p className="whitespace-pre-wrap">{visibleText}</p>
         </div>
       </div>

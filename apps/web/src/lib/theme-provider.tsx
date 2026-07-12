@@ -10,10 +10,15 @@ function systemDark() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
+function isTheme(v: unknown): v is Theme {
+  return v === "light" || v === "dark" || v === "system";
+}
+
 export function ThemeProvider({ children, defaultTheme = "system" as Theme }: { children: React.ReactNode; defaultTheme?: Theme }) {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (typeof localStorage !== "undefined" && (localStorage.getItem(KEY) as Theme)) || defaultTheme,
-  );
+  const [theme, setThemeState] = useState<Theme>(() => {
+    const stored = typeof localStorage !== "undefined" ? localStorage.getItem(KEY) : null;
+    return isTheme(stored) ? stored : defaultTheme;
+  });
   const resolvedTheme: "light" | "dark" = theme === "system" ? (systemDark() ? "dark" : "light") : theme;
 
   useEffect(() => {

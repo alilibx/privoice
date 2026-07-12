@@ -17,8 +17,8 @@ export const MODEL_META = {
   "openai/gpt-5.5": { name: "GPT-5.5", toolRating: "Best", ragRating: "Best" },
 } as const satisfies Record<string, { name: string; toolRating: string; ragRating: string }>;
 
-export const MODEL_ALLOWLIST = Object.keys(MODEL_META);
+export const MODEL_ALLOWLIST: readonly string[] = Object.keys(MODEL_META);
 
 export function isAllowedModel(id: string): boolean {
-  return (MODEL_ALLOWLIST as string[]).includes(id);
+  return MODEL_ALLOWLIST.includes(id);
 }
