@@ -180,11 +180,19 @@ own qualitative ratings for **Tool-calling** and **RAG** (e.g. Good / Strong /
 Best). Exact slugs validated against the live `/models` list; unknown slugs are
 simply omitted from the UI.
 
-- `openai/gpt-4o-mini` — budget baseline (current default).
-- `anthropic/claude-haiku-4.5` — cheap/mid, strong agentic tool-calling.
-- `anthropic/claude-sonnet-4.5` — mid-premium, top-tier agentic + RAG.
-- `openai/gpt-4o` — frontier GPT option.
-- `google/gemini-2.0-flash` — cheap/fast breadth.
+Slugs and live prices (per 1M tokens, in/out) verified against OpenRouter's
+`/models` on 2026-07-12:
+
+- `openai/gpt-4o-mini` (~$0.15/$0.60) — budget baseline (current default).
+- `google/gemini-2.5-flash` ($0.30/$2.50) — cheap/fast breadth.
+- `anthropic/claude-haiku-4.5` ($1.00/$5.00) — cheap, strong agentic tool-calling.
+- `anthropic/claude-sonnet-5` ($2.00/$10.00) — top-tier agentic + RAG.
+- `openai/gpt-5.4` ($2.50/$15.00) — newer frontier GPT (the GPT-5.x line).
+- `openai/gpt-5.5` ($5.00/$30.00) — top frontier GPT.
+
+Live pricing in the comparison UI comes from `listModels` (the `/models` fetch),
+so the numbers above are just the design-time reference — the UI never hardcodes
+prices. Curated Tool-calling / RAG ratings live in `lib/models.ts` keyed by slug.
 
 The **default** model when a user has no saved setting is `openai/gpt-4o-mini`.
 
