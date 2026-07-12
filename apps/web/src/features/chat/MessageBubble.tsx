@@ -1,5 +1,6 @@
 import { useSmoothText } from "@convex-dev/agent/react";
 import ToolTrace, { type ToolPart } from "@/features/chat/ToolTrace";
+import Markdown from "@/features/chat/Markdown";
 import BrandMark from "@/components/layout/BrandMark";
 
 export type ChatMessage = {
@@ -47,11 +48,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
       <BrandMark className="mt-0.5 h-8 w-8 shrink-0" />
       <div className="min-w-0 flex-1 space-y-3">
         <ToolTrace parts={message.parts} />
-        {hasText && (
-          <div className="whitespace-pre-wrap text-[15px] leading-7 text-foreground">
-            {visibleText}
-          </div>
-        )}
+        {hasText && <Markdown>{visibleText}</Markdown>}
       </div>
     </div>
   );
