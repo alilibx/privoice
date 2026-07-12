@@ -15,6 +15,7 @@ function renderChat() {
 }
 
 const sendMessage = vi.fn(() => Promise.resolve());
+const deleteThreadMock = vi.fn(() => Promise.resolve());
 
 vi.mock("@/features/documents/content-hash", () => ({
   hashFile: vi.fn(async () => "hash-abc"),
@@ -39,7 +40,11 @@ vi.mock("convex/react", () => ({
       return { modelId: "openai/gpt-4o-mini" };
     return [{ _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 }];
   },
-  useMutation: () => vi.fn(() => Promise.resolve()),
+  useMutation: (m?: Parameters<typeof getFunctionName>[0]) => {
+    if (m && getFunctionName(m) === getFunctionName(api.chat.deleteThread))
+      return deleteThreadMock;
+    return vi.fn(() => Promise.resolve());
+  },
   useAction: () => sendMessage,
 }));
 
@@ -132,6 +137,9 @@ test("shows a searching-documents affordance while a tool call is in progress", 
 beforeAll(() => {
   // jsdom has no layout / scrollTo; stub so the hook's scroll calls are spyable.
   Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
+  // Radix menus probe pointer-capture + scroll APIs jsdom doesn't implement.
+  Element.prototype.hasPointerCapture = vi.fn(() => false);
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 test("scrolls to bottom after sending a message", async () => {
@@ -160,5 +168,25 @@ test("attaching a duplicate opens the dialog; Use existing pins without re-uploa
   // The existing document is now attached as a chip (rendered by AttachmentCard).
   await waitFor(() =>
     expect(screen.getAllByText("report.pdf").length).toBeGreaterThan(0),
+  );
+});
+
+test("deleting a conversation confirms then calls deleteThread", async () => {
+  mockedUseUIMessages.mockReturnValue(baseMessages as any);
+  deleteThreadMock.mockClear();
+  renderChat();
+
+  // Open the active row's kebab (mocked listThreads returns thread "thread1").
+  const trigger = screen.getAllByRole("button", { name: /conversation options/i })[0];
+  trigger.focus();
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  fireEvent.click(await screen.findByRole("menuitem", { name: /delete/i }));
+
+  // Confirm dialog appears; confirm it.
+  await screen.findByText(/delete conversation/i);
+  fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+
+  await waitFor(() =>
+    expect(deleteThreadMock).toHaveBeenCalledWith({ threadId: "thread1" }),
   );
 });

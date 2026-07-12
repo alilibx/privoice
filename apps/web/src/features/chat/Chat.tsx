@@ -20,6 +20,15 @@ import { withAttachmentContext, displayText } from "@/features/chat/attachment-p
 import { useStickToBottom } from "@/features/chat/use-stick-to-bottom";
 import DuplicateDialog from "@/features/documents/DuplicateDialog";
 import { hashFile } from "@/features/documents/content-hash";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const KIND_BY_EXT: Record<string, string> = {
   pdf: "pdf",
@@ -48,6 +57,7 @@ export default function Chat() {
   const { openNav, toggleDesktopNav, desktopNavHidden } = useAppShell();
   const threads = (useQuery(api.chat.listThreads) ?? []) as ThreadRow[];
   const createThread = useMutation(api.chat.createThread);
+  const deleteThread = useMutation(api.chat.deleteThread);
   const sendMessage = useAction(api.chat.sendMessage);
   const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const createDocument = useMutation(api.documents.create);
@@ -71,6 +81,8 @@ export default function Chat() {
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   // A chat attachment awaiting a duplicate decision (same name + same bytes).
   const [attachDup, setAttachDup] = useState<{ file: File; hash: string } | null>(null);
+  // The threadId awaiting delete confirmation.
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   // Attachments that were sent with a message, keyed by the message text, so
   // the chips render under the right user turn in the transcript (session-only;
   // the server transcript doesn't carry attachment metadata).
@@ -173,6 +185,23 @@ export default function Chat() {
       setThreadId(newThreadId);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to start a new chat");
+    }
+  }
+
+  async function confirmDelete() {
+    const id = pendingDelete;
+    setPendingDelete(null);
+    if (!id) return;
+    try {
+      await deleteThread({ threadId: id });
+      if (id === threadId) {
+        // Re-select the most recent remaining thread (threads is desc-ordered),
+        // or fall to the empty state when none remain.
+        const next = threads.find((t) => t.threadId !== id);
+        setThreadId(next ? next.threadId : null);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete conversation");
     }
   }
 
@@ -310,6 +339,7 @@ export default function Chat() {
         desktopHidden={railHidden}
         onClose={() => setRailOpen(false)}
         onCollapse={toggleRail}
+        onDelete={(id) => setPendingDelete(id)}
       />
 
       {/* Scrim for the conversation-rail drawer (mobile). */}
@@ -498,6 +528,31 @@ export default function Chat() {
           if (pending) void doAttachUpload(pending.file, pending.hash);
         }}
       />
+
+      <Dialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete conversation</DialogTitle>
+            <DialogDescription>
+              This conversation and its messages will be permanently deleted.
+              This can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={() => void confirmDelete()}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
