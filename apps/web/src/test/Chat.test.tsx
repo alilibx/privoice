@@ -1,14 +1,25 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
-import Chat from "../components/Chat";
+import Chat from "@/features/chat/Chat";
 import { useUIMessages } from "@convex-dev/agent/react";
+import { api } from "../../convex/_generated/api";
+
+function renderChat() {
+  return render(
+    <MemoryRouter>
+      <Chat />
+    </MemoryRouter>,
+  );
+}
 
 const sendMessage = vi.fn(() => Promise.resolve());
 
 vi.mock("convex/react", () => ({
-  useQuery: () => [
-    { _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 },
-  ],
+  useQuery: (q: unknown) =>
+    q === api.documents.list
+      ? []
+      : [{ _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 }],
   useMutation: () => vi.fn(() => Promise.resolve()),
   useAction: () => sendMessage,
 }));
@@ -53,7 +64,7 @@ beforeEach(() => {
 });
 
 test("renders thread list, streamed messages, and the attach input", () => {
-  render(<Chat />);
+  renderChat();
   expect(screen.getByText("Q3 planning")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /new chat/i })).toBeInTheDocument();
   expect(screen.getByText("What does the Q3 doc say?")).toBeInTheDocument();
@@ -62,7 +73,7 @@ test("renders thread list, streamed messages, and the attach input", () => {
 });
 
 test("typing a message and sending calls the send action with the thread id", async () => {
-  render(<Chat />);
+  renderChat();
   const textarea = screen.getByPlaceholderText(/ask about your documents/i);
   fireEvent.change(textarea, { target: { value: "Summarize the doc" } });
   fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
@@ -92,6 +103,6 @@ test("shows a searching-documents affordance while a tool call is in progress", 
     loadMore: vi.fn(),
   } as any);
 
-  render(<Chat />);
+  renderChat();
   expect(screen.getByText(/searching your documents/i)).toBeInTheDocument();
 });
