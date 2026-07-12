@@ -1,6 +1,11 @@
 import { useSmoothText } from "@convex-dev/agent/react";
 import ToolTrace, { type ToolPart } from "@/features/chat/ToolTrace";
 import Markdown from "@/features/chat/Markdown";
+import AttachmentCard, {
+  type Attachment,
+  type AttachmentStatus,
+} from "@/features/chat/AttachmentCard";
+import { displayText } from "@/features/chat/attachment-prompt";
 import BrandMark from "@/components/layout/BrandMark";
 
 export type ChatMessage = {
@@ -11,7 +16,15 @@ export type ChatMessage = {
   parts: ToolPart[];
 };
 
-export default function MessageBubble({ message }: { message: ChatMessage }) {
+export default function MessageBubble({
+  message,
+  attachments,
+  statusFor,
+}: {
+  message: ChatMessage;
+  attachments?: Attachment[];
+  statusFor?: (docId: string) => AttachmentStatus;
+}) {
   const [visibleText] = useSmoothText(message.text, {
     startStreaming: message.status === "streaming",
   });
@@ -34,10 +47,21 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
 
   if (isUser) {
     return (
-      <div className="msg-in flex justify-end">
+      <div className="msg-in flex flex-col items-end gap-1.5">
         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-relaxed text-primary-foreground shadow-sm sm:max-w-[78%]">
-          <p className="whitespace-pre-wrap">{visibleText}</p>
+          <p className="whitespace-pre-wrap">{displayText(visibleText)}</p>
         </div>
+        {attachments && attachments.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {attachments.map((a) => (
+              <AttachmentCard
+                key={a.docId}
+                attachment={a}
+                status={statusFor?.(a.docId) ?? "ready"}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

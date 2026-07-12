@@ -12,7 +12,11 @@ import { cn } from "@/lib/utils";
 import ThreadList, { type ThreadRow } from "@/features/chat/ThreadList";
 import MessageBubble, { type ChatMessage } from "@/features/chat/MessageBubble";
 import Composer from "@/features/chat/Composer";
-import AttachmentCard, { type Attachment } from "@/features/chat/AttachmentCard";
+import AttachmentCard, {
+  type Attachment,
+  type AttachmentStatus,
+} from "@/features/chat/AttachmentCard";
+import { withAttachmentContext, displayText } from "@/features/chat/attachment-prompt";
 
 const KIND_BY_EXT: Record<string, string> = {
   pdf: "pdf",
@@ -35,6 +39,8 @@ const SUGGESTIONS = [
 
 const RAIL_HIDE_KEY = "privoice-rail-hidden";
 
+type PendingEcho = { text: string; attachments: Attachment[] };
+
 export default function Chat() {
   const { openNav, toggleDesktopNav, desktopNavHidden } = useAppShell();
   const threads = (useQuery(api.chat.listThreads) ?? []) as ThreadRow[];
@@ -54,7 +60,14 @@ export default function Chat() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [uploadBusy, setUploadBusy] = useState(false);
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Files attached to the message currently being composed (not yet sent).
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  // Attachments that were sent with a message, keyed by the message text, so
+  // the chips render under the right user turn in the transcript (session-only;
+  // the server transcript doesn't carry attachment metadata).
+  const [sentAttachments, setSentAttachments] = useState<
+    { text: string; attachments: Attachment[] }[]
+  >([]);
   const [railOpen, setRailOpen] = useState(false);
   const [railHidden, setRailHidden] = useState(
     () => typeof localStorage !== "undefined" && localStorage.getItem(RAIL_HIDE_KEY) === "1",
@@ -84,17 +97,18 @@ export default function Chat() {
   const messages = results as unknown as ChatMessage[];
 
   // Optimistic echo: user messages sent this session show instantly, then are
-  // dropped once the server-persisted copy appears in `messages`.
-  const [pending, setPending] = useState<string[]>([]);
+  // dropped once the server-persisted copy appears (matched on the visible
+  // text, since the persisted prompt may carry an appended grounding note).
+  const [pending, setPending] = useState<PendingEcho[]>([]);
   useEffect(() => {
     setPending((prev) => {
       if (prev.length === 0) return prev;
       const userTexts = messages
         .filter((m) => m.role === "user")
-        .map((m) => m.text);
+        .map((m) => displayText(m.text));
       const next = [...prev];
       for (const t of userTexts) {
-        const i = next.indexOf(t);
+        const i = next.findIndex((p) => p.text === t);
         if (i >= 0) next.splice(i, 1);
       }
       return next.length === prev.length ? prev : next;
@@ -102,8 +116,24 @@ export default function Chat() {
   }, [messages]);
   useEffect(() => {
     setPending([]);
-    setAttachments([]);
+    setPendingAttachments([]);
+    setSentAttachments([]);
   }, [threadId]);
+
+  function statusFor(docId: string): AttachmentStatus {
+    const doc = documents.find((d) => d._id === docId);
+    return (doc?.status as AttachmentStatus) ?? "parsing";
+  }
+
+  // Block sending while an attachment is still loading (uploading/ingesting) —
+  // the document must be searchable before the assistant can ground on it.
+  const attachmentsLoading = pendingAttachments.some(
+    (a) => statusFor(a.docId) === "parsing",
+  );
+
+  function attachmentsForText(t: string): Attachment[] | undefined {
+    return sentAttachments.find((s) => s.text === t)?.attachments;
+  }
 
   function selectThread(id: string) {
     setThreadId(id);
@@ -122,9 +152,15 @@ export default function Chat() {
 
   async function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || attachmentsLoading) return;
+
+    const atts = pendingAttachments;
     setText("");
-    setPending((p) => [...p, trimmed]); // optimistic echo, instantly
+    setPendingAttachments([]);
+    setPending((p) => [...p, { text: trimmed, attachments: atts }]); // optimistic
+    if (atts.length > 0) {
+      setSentAttachments((s) => [...s, { text: trimmed, attachments: atts }]);
+    }
     setSending(true);
     try {
       // Auto-create a thread on first send (no thread selected yet).
@@ -133,11 +169,17 @@ export default function Chat() {
         tid = await createThread();
         setThreadId(tid);
       }
-      await sendMessage({ threadId: tid, text: trimmed });
+      // Append a grounding note naming the attached files so the assistant
+      // answers about them (stripped from the visible bubble by displayText).
+      const prompt = withAttachmentContext(
+        trimmed,
+        atts.map((a) => a.filename),
+      );
+      await sendMessage({ threadId: tid, text: prompt });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send message");
       setPending((p) => {
-        const i = p.indexOf(trimmed);
+        const i = p.findIndex((x) => x.text === trimmed);
         if (i < 0) return p;
         const n = [...p];
         n.splice(i, 1);
@@ -164,7 +206,7 @@ export default function Chat() {
         mimeType: file.type,
         sizeBytes: file.size,
       });
-      setAttachments((prev) => [
+      setPendingAttachments((prev) => [
         ...prev,
         {
           docId: documentId as unknown as string,
@@ -180,9 +222,8 @@ export default function Chat() {
     }
   }
 
-  function statusFor(docId: string): "parsing" | "ready" | "failed" {
-    const doc = documents.find((d) => d._id === docId);
-    return (doc?.status as "parsing" | "ready" | "failed") ?? "parsing";
+  function removePendingAttachment(docId: string) {
+    setPendingAttachments((prev) => prev.filter((a) => a.docId !== docId));
   }
 
   const activeTitle =
@@ -284,13 +325,36 @@ export default function Chat() {
             <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-10">
               <div className="space-y-8 sm:space-y-9">
                 {messages.map((m) => (
-                  <MessageBubble key={m.key} message={m} />
+                  <MessageBubble
+                    key={m.key}
+                    message={m}
+                    attachments={
+                      m.role === "user"
+                        ? attachmentsForText(displayText(m.text))
+                        : undefined
+                    }
+                    statusFor={statusFor}
+                  />
                 ))}
-                {pending.map((t, i) => (
-                  <div key={`pending-${i}`} className="msg-in flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-relaxed text-primary-foreground opacity-60 shadow-sm sm:max-w-[78%]">
-                      <p className="whitespace-pre-wrap">{t}</p>
+                {pending.map((p, i) => (
+                  <div
+                    key={`pending-${i}`}
+                    className="msg-in flex flex-col items-end gap-1.5"
+                  >
+                    <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-relaxed text-primary-foreground opacity-70 shadow-sm sm:max-w-[78%]">
+                      <p className="whitespace-pre-wrap">{p.text}</p>
                     </div>
+                    {p.attachments.length > 0 && (
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {p.attachments.map((a) => (
+                          <AttachmentCard
+                            key={a.docId}
+                            attachment={a}
+                            status={statusFor(a.docId)}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -301,13 +365,14 @@ export default function Chat() {
         {/* Composer */}
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
           <div className="mx-auto max-w-3xl">
-            {attachments.length > 0 && (
+            {pendingAttachments.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
-                {attachments.map((a) => (
+                {pendingAttachments.map((a) => (
                   <AttachmentCard
                     key={a.docId}
                     attachment={a}
                     status={statusFor(a.docId)}
+                    onRemove={() => removePendingAttachment(a.docId)}
                   />
                 ))}
               </div>
@@ -316,14 +381,15 @@ export default function Chat() {
               text={text}
               onTextChange={setText}
               onSend={() => void handleSend()}
-              sendDisabled={sending || text.trim() === ""}
+              sendDisabled={sending || text.trim() === "" || attachmentsLoading}
               uploadBusy={uploadBusy}
               onAttach={(f) => void handleAttach(f)}
               modelName={modelName}
             />
             <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Privoice can make mistakes. Answers are grounded in your documents
-              and meetings.
+              {attachmentsLoading
+                ? "Waiting for the attachment to finish loading…"
+                : "Privoice can make mistakes. Answers are grounded in your documents and meetings."}
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { fileIcon, humanSize } from "@/lib/file-icons";
 import { cn } from "@/lib/utils";
 
@@ -26,10 +26,12 @@ function StatusPill({ status }: { status: AttachmentStatus }) {
       </span>
     );
   }
+  // "parsing" covers the whole upload → ingest window; to the user it's just
+  // the file loading, so label it accordingly.
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
       <Loader2 className="h-3 w-3 animate-spin" />
-      Parsing…
+      Loading…
     </span>
   );
 }
@@ -37,9 +39,11 @@ function StatusPill({ status }: { status: AttachmentStatus }) {
 export default function AttachmentCard({
   attachment,
   status,
+  onRemove,
 }: {
   attachment: Attachment;
   status: AttachmentStatus;
+  onRemove?: () => void;
 }) {
   const { Icon, className } = fileIcon(attachment.kind);
   return (
@@ -50,6 +54,16 @@ export default function AttachmentCard({
       </span>
       <span className="text-xs text-muted-foreground">{humanSize(attachment.sizeBytes)}</span>
       <StatusPill status={status} />
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={`Remove ${attachment.filename}`}
+          onClick={onRemove}
+          className="-mr-1 ml-0.5 grid h-5 w-5 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }
