@@ -1,8 +1,60 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-/* Light-only for now — the calm-teal tokens are light values; a real dark theme
-   is a later slice. Pinning color-scheme keeps the OS from painting native form
-   controls (inputs) dark on a light page. */
-:root { color-scheme: light; }
-body { margin: 0; background: theme(colors.page-bg); color: theme(colors.on-surface); font-family: system-ui, -apple-system, sans-serif; }
+
+@layer base {
+  :root {
+    --background: 201 26% 95%;         /* #EEF3F6 page-bg */
+    --foreground: 200 43% 10%;         /* #0F1D24 on-surface */
+    --card: 0 0% 100%;                 /* #FFFFFF surface */
+    --card-foreground: 200 43% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 43% 10%;
+    --primary: 194 77% 31%;            /* #12708D */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 197 43% 91%;          /* #DDEEF3 */
+    --secondary-foreground: 197 82% 25%;
+    --muted: 200 30% 95%;              /* #F1F6F8 surfaceContainer */
+    --muted-foreground: 198 13% 41%;   /* #5C6E77 on-surface-variant */
+    --accent: 195 44% 91%;             /* #E0EFF4 primary-container */
+    --accent-foreground: 197 82% 25%;  /* #0C5C76 */
+    --destructive: 3 63% 58%;          /* #DB554D */
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 26% 86%;             /* #DDE7EC outlineVariant */
+    --input: 200 26% 86%;
+    --ring: 194 77% 31%;
+    --sidebar: 0 0% 100%;
+    --sidebar-foreground: 200 43% 10%;
+    --radius: 0.9rem;                  /* ~18px */
+  }
+  .dark {
+    --background: 200 33% 6%;          /* #0A1216 page-bg dark */
+    --foreground: 197 27% 93%;         /* #E9F0F3 */
+    --card: 200 32% 10%;               /* #111C22 surface */
+    --card-foreground: 197 27% 93%;
+    --popover: 200 32% 10%;
+    --popover-foreground: 197 27% 93%;
+    --primary: 193 57% 56%;            /* #4FB4D1 */
+    --primary-foreground: 197 78% 9%;  /* #052029 */
+    --secondary: 199 43% 16%;          /* #16323C */
+    --secondary-foreground: 194 63% 83%;
+    --muted: 200 31% 13%;              /* #16232A surfaceContainer */
+    --muted-foreground: 200 15% 63%;   /* #93A6AF */
+    --accent: 197 51% 16%;             /* #13323D primary-container */
+    --accent-foreground: 194 63% 83%;  /* #B6E4F1 */
+    --destructive: 4 79% 68%;          /* #EF736B */
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 24% 18%;             /* #22333B outlineVariant */
+    --input: 200 24% 18%;
+    --ring: 193 57% 56%;
+    --sidebar: 200 32% 8%;
+    --sidebar-foreground: 197 27% 93%;
+  }
+  * { border-color: hsl(var(--border)); }
+  body {
+    margin: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
