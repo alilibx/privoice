@@ -27,7 +27,6 @@ const { ragRemoveSourceMock } = vi.hoisted(() => ({
 vi.mock("./rag", () => ({
   ragRemoveSource: ragRemoveSourceMock,
   ragAdd: vi.fn(async () => ({ entryId: "e1", chunkCount: 2 })),
-  ragSearch: vi.fn(async () => ({ results: [], text: "", entries: [], usage: {} })),
   rag: {},
 }));
 

@@ -25,7 +25,6 @@ const { ragAddMock, ragRemoveSourceMock } = vi.hoisted(() => ({
 vi.mock("./rag", () => ({
   ragAdd: ragAddMock,
   ragRemoveSource: ragRemoveSourceMock,
-  ragSearch: vi.fn(async () => ({ results: [], text: "", entries: [], usage: {} })),
   rag: {},
 }));
 
