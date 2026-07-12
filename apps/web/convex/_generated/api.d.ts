@@ -19,6 +19,7 @@ import type * as lib_chunk from "../lib/chunk.js";
 import type * as meetings from "../meetings.js";
 import type * as openrouter from "../openrouter.js";
 import type * as rag from "../rag.js";
+import type * as settings from "../settings.js";
 import type * as tools from "../tools.js";
 
 import type {
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   meetings: typeof meetings;
   openrouter: typeof openrouter;
   rag: typeof rag;
+  settings: typeof settings;
   tools: typeof tools;
 }>;
 

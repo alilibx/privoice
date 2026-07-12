@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import Documents from "../components/Documents";
+import DocumentsList from "@/features/documents/DocumentsList";
 
 vi.mock("convex/react", () => ({
   useQuery: () => [
@@ -11,8 +11,10 @@ vi.mock("convex/react", () => ({
 }));
 
 test("lists documents with status", () => {
-  render(<Documents />);
+  render(<DocumentsList />);
   expect(screen.getByText("report.pdf")).toBeInTheDocument();
   expect(screen.getByText("data.xlsx")).toBeInTheDocument();
+  expect(screen.getByText(/ready/i)).toBeInTheDocument();
   expect(screen.getByText(/parsing/i)).toBeInTheDocument();
+  expect(screen.getByLabelText(/upload/i)).toBeInTheDocument();
 });

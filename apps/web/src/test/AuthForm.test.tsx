@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
-import AuthForm from "../components/AuthForm";
+import AuthForm from "@/features/auth/AuthForm";
 
 const signIn = vi.fn(() => Promise.resolve());
 vi.mock("@convex-dev/auth/react", () => ({

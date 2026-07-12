@@ -14,6 +14,8 @@ import { components, internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
 import { chatAgent } from "./agent";
+import { openrouter } from "./openrouter";
+import { DEFAULT_MODEL, isAllowedModel } from "./models.shared";
 
 async function requireUserId(ctx: QueryCtx | MutationCtx | ActionCtx) {
   const userId = await getAuthUserId(ctx as any);
@@ -62,6 +64,23 @@ export const getThreadOwner = internalQuery({
       .query("chatThreads")
       .withIndex("by_thread", (q) => q.eq("threadId", threadId))
       .unique();
+  },
+});
+
+// Internal-only: lets `sendMessage` (an action, no `ctx.db`) read the
+// caller's saved model preference. Returns the RAW stored value (or
+// DEFAULT_MODEL if unset) — `sendMessage` itself re-validates the result
+// against `isAllowedModel` and fails closed to DEFAULT_MODEL, so this stays
+// safe even if `userSettings.modelId` were ever populated by anything other
+// than settings.ts's allowlist-checked `setModel`.
+export const getUserModel = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const row = await ctx.db
+      .query("userSettings")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    return row?.modelId ?? DEFAULT_MODEL;
   },
 });
 
@@ -150,8 +169,18 @@ export const sendMessage = action({
       threadId,
       userId,
     });
+    // SECURITY: the generation model is resolved and validated server-side,
+    // never taken from client input (sendMessage's own args have no model
+    // field at all). `getUserModel` returns whatever's stored, but we
+    // re-validate here and fail closed to DEFAULT_MODEL — defense in depth
+    // against a stored value that somehow bypassed setModel's allowlist
+    // check.
+    const rawModelId = await ctx.runQuery(internal.chat.getUserModel, {
+      userId,
+    });
+    const modelId = isAllowedModel(rawModelId) ? rawModelId : DEFAULT_MODEL;
     const result = await thread.streamText(
-      { prompt: text },
+      { prompt: text, model: openrouter.chat(modelId) },
       { saveStreamDeltas: true },
     );
     // Drain the stream fully within the action so every delta is saved and
