@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation, type QueryCtx } from "./_generated/server";
+import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
 export const insertChunks = internalMutation({
@@ -58,3 +58,19 @@ export async function bm25Search(
     title: r.title, chunkText: r.chunkText, chunkIndex: r.chunkIndex,
   }));
 }
+
+/**
+ * Internal query wrapper around `bm25Search`, for callers (like
+ * `retrieval/candidates.ts`'s `bm25Candidates`) that run inside an
+ * ActionCtx and so cannot touch `ctx.db` directly — `ctx.runQuery` bridges
+ * into a QueryCtx that `bm25Search` can use.
+ */
+export const searchQuery = internalQuery({
+  args: {
+    userId: v.id("users"),
+    query: v.string(),
+    source: v.optional(v.string()),
+    limit: v.number(),
+  },
+  handler: async (ctx, args): Promise<Bm25Hit[]> => bm25Search(ctx, args),
+});

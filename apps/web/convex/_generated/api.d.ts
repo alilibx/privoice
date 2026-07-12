@@ -20,6 +20,9 @@ import type * as lib_chunk from "../lib/chunk.js";
 import type * as meetings from "../meetings.js";
 import type * as openrouter from "../openrouter.js";
 import type * as rag from "../rag.js";
+import type * as retrieval_config from "../retrieval/config.js";
+import type * as retrieval_fuse from "../retrieval/fuse.js";
+import type * as retrieval_types from "../retrieval/types.js";
 import type * as settings from "../settings.js";
 import type * as tools from "../tools.js";
 
@@ -42,6 +45,9 @@ declare const fullApi: ApiFromModules<{
   meetings: typeof meetings;
   openrouter: typeof openrouter;
   rag: typeof rag;
+  "retrieval/config": typeof retrieval_config;
+  "retrieval/fuse": typeof retrieval_fuse;
+  "retrieval/types": typeof retrieval_types;
   settings: typeof settings;
   tools: typeof tools;
 }>;
