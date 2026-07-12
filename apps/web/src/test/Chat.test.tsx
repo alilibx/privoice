@@ -16,9 +16,25 @@ function renderChat() {
 
 const sendMessage = vi.fn(() => Promise.resolve());
 
+vi.mock("@/features/documents/content-hash", () => ({
+  hashFile: vi.fn(async () => "hash-abc"),
+  sha256Hex: vi.fn(async () => "hash-abc"),
+}));
+
 vi.mock("convex/react", () => ({
   useQuery: (q: Parameters<typeof getFunctionName>[0]) => {
-    if (getFunctionName(q) === getFunctionName(api.documents.list)) return [];
+    if (getFunctionName(q) === getFunctionName(api.documents.list))
+      return [
+        {
+          _id: "d1",
+          filename: "report.pdf",
+          kind: "pdf",
+          status: "ready",
+          sizeBytes: 10,
+          contentHash: "hash-abc",
+          createdAt: 1,
+        },
+      ];
     if (getFunctionName(q) === getFunctionName(api.settings.getSettings))
       return { modelId: "openai/gpt-4o-mini" };
     return [{ _id: "row1", threadId: "thread1", title: "Q3 planning", createdAt: 1 }];
@@ -128,4 +144,21 @@ test("scrolls to bottom after sending a message", async () => {
   fireEvent.keyDown(box, { key: "Enter" });
 
   await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+});
+
+test("attaching a duplicate opens the dialog; Use existing pins without re-uploading", async () => {
+  mockedUseUIMessages.mockReturnValue(baseMessages as any);
+  renderChat();
+
+  const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+  const file = new File([new Uint8Array([1])], "report.pdf", { type: "application/pdf" });
+  fireEvent.change(input, { target: { files: [file] } });
+
+  await screen.findByText("You already have this file");
+  fireEvent.click(screen.getByRole("button", { name: /use existing/i }));
+
+  // The existing document is now attached as a chip (rendered by AttachmentCard).
+  await waitFor(() =>
+    expect(screen.getAllByText("report.pdf").length).toBeGreaterThan(0),
+  );
 });
