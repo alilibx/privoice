@@ -1,6 +1,7 @@
 import { query, mutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import type { Doc } from "./_generated/dataModel";
 
 async function requireUserId(ctx: { auth: any; db: any }) {
   const userId = await getAuthUserId(ctx as any);
@@ -57,7 +58,7 @@ export const remove = mutation({
  */
 export const searchByUser = internalQuery({
   args: { userId: v.id("users"), query: v.string() },
-  handler: async (ctx, { userId, query }) => {
+  handler: async (ctx, { userId, query }): Promise<Doc<"meetings">[]> => {
     const needle = query.trim().toLowerCase();
     const rows = await ctx.db
       .query("meetings")
