@@ -129,3 +129,27 @@ test("pinpoint fails closed when ctx carries no userId", async () => {
   ).rejects.toThrow();
   expect(runQuery).not.toHaveBeenCalled();
 });
+
+test("listDocuments scopes to ctx.userId and formats the inventory", async () => {
+  const runQuery = vi.fn(async (_ref: unknown, _args: { userId: string }) => [
+    { filename: "a.pdf", kind: "pdf", status: "ready", sizeBytes: 2048, createdAt: 1 },
+    { filename: "b.txt", kind: "txt", status: "parsing", sizeBytes: 10, createdAt: 2 },
+  ]);
+  const { listDocuments } = await import("./tools");
+  const tool = withCtx(listDocuments, { userId: "alice_id", runQuery });
+  const result = await tool.execute!({}, { toolCallId: "t1", messages: [] } as any);
+
+  const [, args] = runQuery.mock.calls[0];
+  expect(args).toEqual({ userId: "alice_id" });
+  expect(result).toContain("a.pdf");
+  expect(result).toContain("b.txt");
+  expect(result).toContain("parsing");
+});
+
+test("listDocuments fails closed without a caller in scope", async () => {
+  const { listDocuments } = await import("./tools");
+  const tool = withCtx(listDocuments, {});
+  await expect(
+    tool.execute!({}, { toolCallId: "t1", messages: [] } as any),
+  ).rejects.toThrow(/authenticated user/i);
+});

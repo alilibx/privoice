@@ -54,6 +54,36 @@ export const searchKnowledge = createTool({
   },
 });
 
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export const listDocuments = createTool({
+  description:
+    "List ALL of the user's uploaded documents by name (with type and status). Use this when the user asks to list, count, or see their documents — not for content questions.",
+  inputSchema: z.object({}),
+  execute: async (ctx): Promise<string> => {
+    const userId = requireCallerUserId(ctx);
+    const docs: Array<{
+      filename: string;
+      kind: string;
+      status: string;
+      sizeBytes: number;
+      createdAt: number;
+    }> = await ctx.runQuery(internal.documents.listForUser, {
+      userId: userId as Id<"users">,
+    });
+    if (docs.length === 0) return "The user has no uploaded documents.";
+    const lines = docs.map(
+      (d) =>
+        `- ${d.filename} (${d.kind}, ${formatBytes(d.sizeBytes)}${d.status !== "ready" ? `, ${d.status}` : ""})`,
+    );
+    return `The user has ${docs.length} document${docs.length === 1 ? "" : "s"}:\n${lines.join("\n")}`;
+  },
+});
+
 const CONTEXT_LINES = 2;
 const MAX_WINDOWS = 40;
 // Security hardening: cap the model-supplied regex pattern length BEFORE

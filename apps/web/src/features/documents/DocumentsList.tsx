@@ -6,6 +6,8 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import PageHeader from "@/components/layout/PageHeader";
 import DocumentCard, { type DocumentRow } from "@/features/documents/DocumentCard";
 import UploadDropzone from "@/features/documents/UploadDropzone";
+import DuplicateDialog from "@/features/documents/DuplicateDialog";
+import { hashFile } from "@/features/documents/content-hash";
 
 export default function DocumentsList() {
   const docs = (useQuery(api.documents.list) ?? []) as DocumentRow[];
@@ -13,8 +15,20 @@ export default function DocumentsList() {
   const create = useMutation(api.documents.create);
   const remove = useMutation(api.documents.remove);
   const [busy, setBusy] = useState(false);
+  // The file awaiting a duplicate decision, plus its computed hash.
+  const [dup, setDup] = useState<{ file: File; hash: string } | null>(null);
 
-  async function upload(file: File) {
+  // Byte-identical + same-name copy already present (ready or still parsing)?
+  function findDuplicate(filename: string, hash: string): DocumentRow | undefined {
+    return docs.find(
+      (d) =>
+        d.filename === filename &&
+        d.contentHash === hash &&
+        (d.status === "ready" || d.status === "parsing"),
+    );
+  }
+
+  async function doUpload(file: File, contentHash: string) {
     setBusy(true);
     try {
       const url = await generateUploadUrl();
@@ -29,12 +43,22 @@ export default function DocumentsList() {
         filename: file.name,
         mimeType: file.type,
         sizeBytes: file.size,
+        contentHash,
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function upload(file: File) {
+    const hash = await hashFile(file);
+    if (findDuplicate(file.name, hash)) {
+      setDup({ file, hash });
+      return;
+    }
+    await doUpload(file, hash);
   }
 
   async function handleDelete(id: string) {
@@ -68,6 +92,22 @@ export default function DocumentsList() {
           )}
         </div>
       </div>
+      <DuplicateDialog
+        open={dup !== null}
+        filename={dup?.file.name ?? ""}
+        onOpenChange={(open) => {
+          if (!open) setDup(null);
+        }}
+        onUseExisting={() => {
+          setDup(null);
+          toast.success("Using your existing copy");
+        }}
+        onUploadAnyway={() => {
+          const pending = dup;
+          setDup(null);
+          if (pending) void doUpload(pending.file, pending.hash);
+        }}
+      />
     </div>
   );
 }

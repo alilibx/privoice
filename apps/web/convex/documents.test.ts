@@ -167,3 +167,46 @@ test("unauthenticated calls throw", async () => {
     }),
   ).rejects.toThrow();
 });
+
+test("create persists contentHash when provided", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const { t: alice, userId } = await asNewUser(t, "hash@x.com");
+    const storageId = await alice.run(async (ctx) =>
+      ctx.storage.store(new Blob([new Uint8Array([1, 2, 3])])),
+    );
+    const id = await alice.mutation(api.documents.create, {
+      storageId,
+      filename: "a.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 3,
+      contentHash: "deadbeef",
+    });
+    const doc = await t.run((ctx) => ctx.db.get(id));
+    expect(doc?.contentHash).toBe("deadbeef");
+    expect(doc?.userId).toBe(userId);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("listForUser returns only the caller's documents", async () => {
+  const t = convexTest(schema, modules);
+  const { userId: aliceId } = await asNewUser(t, "alice-list@x.com");
+  const { userId: bobId } = await asNewUser(t, "bob-list@x.com");
+  await t.run(async (ctx) => {
+    const storageId = await ctx.storage.store(new Blob([new Uint8Array([1])]));
+    await ctx.db.insert("documents", {
+      userId: aliceId, storageId, filename: "a.pdf", mimeType: "application/pdf",
+      kind: "pdf", sizeBytes: 1, status: "ready", chunkCount: 1, createdAt: 1,
+    });
+    await ctx.db.insert("documents", {
+      userId: bobId, storageId, filename: "b.pdf", mimeType: "application/pdf",
+      kind: "pdf", sizeBytes: 1, status: "ready", chunkCount: 1, createdAt: 1,
+    });
+  });
+  const list = await t.query(internal.documents.listForUser, { userId: aliceId });
+  expect(list).toHaveLength(1);
+  expect(list[0].filename).toBe("a.pdf");
+});

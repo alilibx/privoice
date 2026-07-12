@@ -3,7 +3,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { useUIMessages } from "@convex-dev/agent/react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Menu, MessagesSquare, PanelLeft } from "lucide-react";
+import { Menu, MessagesSquare, PanelLeft, ArrowDown } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { MODEL_META, DEFAULT_MODEL } from "../../../convex/models.shared";
 import { useAppShell } from "@/components/layout/app-shell-context";
@@ -17,6 +17,9 @@ import AttachmentCard, {
   type AttachmentStatus,
 } from "@/features/chat/AttachmentCard";
 import { withAttachmentContext, displayText } from "@/features/chat/attachment-prompt";
+import { useStickToBottom } from "@/features/chat/use-stick-to-bottom";
+import DuplicateDialog from "@/features/documents/DuplicateDialog";
+import { hashFile } from "@/features/documents/content-hash";
 
 const KIND_BY_EXT: Record<string, string> = {
   pdf: "pdf",
@@ -50,7 +53,11 @@ export default function Chat() {
   const createDocument = useMutation(api.documents.create);
   const documents = (useQuery(api.documents.list) ?? []) as Array<{
     _id: string;
+    filename: string;
+    kind: string;
+    sizeBytes: number;
     status: string;
+    contentHash?: string;
   }>;
   const modelId = useQuery(api.settings.getSettings)?.modelId ?? DEFAULT_MODEL;
   const modelName =
@@ -62,6 +69,8 @@ export default function Chat() {
   const [uploadBusy, setUploadBusy] = useState(false);
   // Files attached to the message currently being composed (not yet sent).
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  // A chat attachment awaiting a duplicate decision (same name + same bytes).
+  const [attachDup, setAttachDup] = useState<{ file: File; hash: string } | null>(null);
   // Attachments that were sent with a message, keyed by the message text, so
   // the chips render under the right user turn in the transcript (session-only;
   // the server transcript doesn't carry attachment metadata).
@@ -72,6 +81,14 @@ export default function Chat() {
   const [railHidden, setRailHidden] = useState(
     () => typeof localStorage !== "undefined" && localStorage.getItem(RAIL_HIDE_KEY) === "1",
   );
+
+  const {
+    ref: scrollRef,
+    atBottom,
+    onScroll,
+    scrollToBottom,
+    stick,
+  } = useStickToBottom<HTMLDivElement>();
 
   function toggleRail() {
     setRailHidden((prev) => {
@@ -118,7 +135,16 @@ export default function Chat() {
     setPending([]);
     setPendingAttachments([]);
     setSentAttachments([]);
-  }, [threadId]);
+    setAttachDup(null);
+    scrollToBottom("auto");
+  }, [threadId, scrollToBottom]);
+
+  // Follow the conversation as it grows/streams — but only if the user is
+  // already at the bottom (stick() gates on that). handleSend force-scrolls
+  // separately, so a send always lands at the latest.
+  useEffect(() => {
+    stick();
+  }, [messages, pending, stick]);
 
   function statusFor(docId: string): AttachmentStatus {
     const doc = documents.find((d) => d._id === docId);
@@ -158,6 +184,9 @@ export default function Chat() {
     setText("");
     setPendingAttachments([]);
     setPending((p) => [...p, { text: trimmed, attachments: atts }]); // optimistic
+    // The user's own send always jumps to the latest, even if they'd scrolled
+    // up. rAF lets the optimistic bubble paint first so scrollHeight is final.
+    requestAnimationFrame(() => scrollToBottom("auto"));
     if (atts.length > 0) {
       setSentAttachments((s) => [...s, { text: trimmed, attachments: atts }]);
     }
@@ -194,7 +223,7 @@ export default function Chat() {
     }
   }
 
-  async function handleAttach(file: File) {
+  async function doAttachUpload(file: File, contentHash: string) {
     setUploadBusy(true);
     try {
       const url = await generateUploadUrl();
@@ -209,6 +238,7 @@ export default function Chat() {
         filename: file.name,
         mimeType: file.type,
         sizeBytes: file.size,
+        contentHash,
       });
       setPendingAttachments((prev) => [
         ...prev,
@@ -224,6 +254,41 @@ export default function Chat() {
     } finally {
       setUploadBusy(false);
     }
+  }
+
+  // Attach the already-uploaded document (no new copy) — the "reference the
+  // existing document" path when the user confirms a duplicate.
+  function attachExisting(docId: string) {
+    const doc = documents.find((d) => d._id === docId);
+    if (!doc) return;
+    setPendingAttachments((prev) =>
+      prev.some((a) => a.docId === docId)
+        ? prev
+        : [
+            ...prev,
+            {
+              docId: doc._id,
+              filename: doc.filename,
+              kind: doc.kind || kindFromFilename(doc.filename),
+              sizeBytes: doc.sizeBytes,
+            },
+          ],
+    );
+  }
+
+  async function handleAttach(file: File) {
+    const hash = await hashFile(file);
+    const existing = documents.find(
+      (d) =>
+        d.filename === file.name &&
+        d.contentHash === hash &&
+        (d.status === "ready" || d.status === "parsing"),
+    );
+    if (existing) {
+      setAttachDup({ file, hash });
+      return;
+    }
+    await doAttachUpload(file, hash);
   }
 
   function removePendingAttachment(docId: string) {
@@ -322,7 +387,7 @@ export default function Chat() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
           {isEmpty ? (
             <EmptyState onPick={setText} />
           ) : (
@@ -366,6 +431,17 @@ export default function Chat() {
           )}
         </div>
 
+        {!atBottom && !isEmpty && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom("smooth")}
+            className="absolute bottom-28 left-1/2 z-10 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border bg-card/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur transition hover:border-primary/40"
+          >
+            Jump to latest
+            <ArrowDown className="h-3.5 w-3.5" />
+          </button>
+        )}
+
         {/* Composer */}
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">
           <div className="mx-auto max-w-3xl">
@@ -398,6 +474,30 @@ export default function Chat() {
           </div>
         </div>
       </div>
+
+      <DuplicateDialog
+        open={attachDup !== null}
+        filename={attachDup?.file.name ?? ""}
+        onOpenChange={(open) => {
+          if (!open) setAttachDup(null);
+        }}
+        onUseExisting={() => {
+          const pending = attachDup;
+          setAttachDup(null);
+          if (pending) {
+            const existing = documents.find(
+              (d) =>
+                d.filename === pending.file.name && d.contentHash === pending.hash,
+            );
+            if (existing) attachExisting(existing._id);
+          }
+        }}
+        onUploadAnyway={() => {
+          const pending = attachDup;
+          setAttachDup(null);
+          if (pending) void doAttachUpload(pending.file, pending.hash);
+        }}
+      />
     </div>
   );
 }
