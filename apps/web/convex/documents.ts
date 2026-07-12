@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
@@ -55,6 +55,27 @@ export const list = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
+  },
+});
+
+// Full document inventory for a user — the backing query for the
+// `listDocuments` agent tool. internalQuery so it's only reachable server-side
+// with a userId resolved from the authenticated caller (never from a client).
+export const listForUser = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const docs = await ctx.db
+      .query("documents")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
+    return docs.map((d) => ({
+      filename: d.filename,
+      kind: d.kind,
+      status: d.status,
+      sizeBytes: d.sizeBytes,
+      createdAt: d.createdAt,
+    }));
   },
 });
 

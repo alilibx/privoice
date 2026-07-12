@@ -190,3 +190,23 @@ test("create persists contentHash when provided", async () => {
     vi.useRealTimers();
   }
 });
+
+test("listForUser returns only the caller's documents", async () => {
+  const t = convexTest(schema, modules);
+  const { userId: aliceId } = await asNewUser(t, "alice-list@x.com");
+  const { userId: bobId } = await asNewUser(t, "bob-list@x.com");
+  await t.run(async (ctx) => {
+    const storageId = await ctx.storage.store(new Blob([new Uint8Array([1])]));
+    await ctx.db.insert("documents", {
+      userId: aliceId, storageId, filename: "a.pdf", mimeType: "application/pdf",
+      kind: "pdf", sizeBytes: 1, status: "ready", chunkCount: 1, createdAt: 1,
+    });
+    await ctx.db.insert("documents", {
+      userId: bobId, storageId, filename: "b.pdf", mimeType: "application/pdf",
+      kind: "pdf", sizeBytes: 1, status: "ready", chunkCount: 1, createdAt: 1,
+    });
+  });
+  const list = await t.query(internal.documents.listForUser, { userId: aliceId });
+  expect(list).toHaveLength(1);
+  expect(list[0].filename).toBe("a.pdf");
+});
