@@ -62,12 +62,18 @@ export default function Chat() {
 
   async function handleSend() {
     const trimmed = text.trim();
-    if (!trimmed || !threadId || sending) return;
+    if (!trimmed || sending) return;
     setText("");
     setSending(true);
     setError(null);
     try {
-      await sendMessage({ threadId, text: trimmed });
+      // Auto-create a thread on first send (no thread selected yet).
+      let tid = threadId;
+      if (!tid) {
+        tid = await createThread();
+        setThreadId(tid);
+      }
+      await sendMessage({ threadId: tid, text: trimmed });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send message");
     } finally {
@@ -148,7 +154,7 @@ export default function Chat() {
           text={text}
           onTextChange={setText}
           onSend={() => void handleSend()}
-          sendDisabled={!threadId || sending || text.trim() === ""}
+          sendDisabled={sending || text.trim() === ""}
           uploadBusy={uploadBusy}
           onAttach={(f) => void handleAttach(f)}
         />
