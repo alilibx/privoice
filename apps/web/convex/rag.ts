@@ -55,22 +55,6 @@ export async function ragAdd(
 }
 
 /**
- * Vector search scoped to one user's namespace. Requires `ctx.runAction`
- * (rag.search calls the component's embed-then-search pipeline), so this
- * must run inside an action — used by Task 2's chat action.
- */
-export async function ragSearch(
-  ctx: ActionCtx,
-  args: { userId: string; query: string; limit?: number },
-) {
-  return rag.search(ctx, {
-    namespace: args.userId,
-    query: args.query,
-    limit: args.limit ?? 8,
-  });
-}
-
-/**
  * Delete the rag entry stored under `key` (the sourceId) in the user's
  * namespace, and delete the mirrored `knowledgeChunks` rows for the same
  * (userId, source, sourceId) — see knowledge.ts's `deleteBySource`. Only

@@ -1,8 +1,8 @@
 import { createTool, type ToolCtx } from "@convex-dev/agent";
 import { z } from "zod";
 import { internal } from "./_generated/api";
-import type { Doc, Id } from "./_generated/dataModel";
-import { ragSearch } from "./rag";
+import type { Id } from "./_generated/dataModel";
+import { retrieve } from "./retrieval/retrieve";
 
 // SECURITY: these tools are only ever invoked by the agent runtime while
 // generating a response (see agent.ts + chat.ts's `sendMessage`), which
@@ -20,31 +20,85 @@ function requireCallerUserId(ctx: ToolCtx): string {
   return ctx.userId;
 }
 
-export const searchDocuments = createTool({
-  description: "Search the user's uploaded documents for relevant passages.",
-  inputSchema: z.object({ query: z.string().describe("What to look for") }),
-  execute: async (ctx, { query }): Promise<string> => {
+// Marker the client (see ToolTrace/Chat) splits on to separate the prose
+// "pack" the model reads from the structured sources list it renders as
+// numbered citations. Keeping it out-of-band like this means the model
+// never has to reproduce or paraphrase the sources JSON itself — it just
+// cites `[n]` and the UI resolves `n` against this block.
+const SOURCES_MARKER = "\n\n<<<SOURCES>>>\n";
+
+export const searchKnowledge = createTool({
+  description:
+    "Search the user's documents and meetings for relevant passages to answer the question.",
+  inputSchema: z.object({
+    query: z.string().describe("What to look for"),
+    source: z.enum(["document", "meeting"]).optional().describe(
+      "Optionally restrict the search to only documents or only meetings",
+    ),
+  }),
+  execute: async (ctx, { query, source }): Promise<string> => {
     const userId = requireCallerUserId(ctx);
-    const { text } = await ragSearch(ctx, { userId, query });
-    return text || "No relevant documents found.";
+    // NOTE: `internal.chat.getPins` (Task 9) will supply the caller's pinned
+    // sources here; until then, no pins are applied.
+    const result = await retrieve(ctx, {
+      userId,
+      query,
+      source,
+      pinnedSourceIds: [],
+    });
+    return `${result.pack}${SOURCES_MARKER}${JSON.stringify(result.sources)}`;
   },
 });
 
-export const searchMeetings = createTool({
-  description: "Search the user's meetings by title and notes.",
-  inputSchema: z.object({ query: z.string() }),
-  execute: async (ctx, { query }): Promise<string> => {
+const CONTEXT_LINES = 2;
+const MAX_WINDOWS = 40;
+
+export const pinpoint = createTool({
+  description:
+    "Find exact values (dates, amounts, clause numbers, names) within a single known source by regex pattern, returning the matching lines with surrounding context.",
+  inputSchema: z.object({
+    sourceId: z.string().describe("The sourceId of the document or meeting to search within"),
+    pattern: z.string().describe("A regular expression to search for, e.g. an amount or date pattern"),
+  }),
+  execute: async (ctx, { sourceId, pattern }): Promise<string> => {
     const userId = requireCallerUserId(ctx);
-    const rows: Doc<"meetings">[] = await ctx.runQuery(
-      internal.meetings.searchByUser,
-      {
-        userId: userId as Id<"users">,
-        query,
-      },
-    );
-    return (
-      rows.map((m) => `- ${m.title}: ${m.notes ?? ""}`).join("\n") ||
-      "No matching meetings."
-    );
+    const text: string = await ctx.runQuery(internal.knowledge.linesFor, {
+      userId: userId as Id<"users">,
+      sourceId,
+    });
+
+    let regex: RegExp;
+    try {
+      regex = new RegExp(pattern, "i");
+    } catch {
+      return "Invalid search pattern.";
+    }
+
+    if (!text) return "No matches found.";
+    const lines = text.split("\n");
+
+    const windows: Array<[number, number]> = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (regex.test(lines[i])) {
+        windows.push([Math.max(0, i - CONTEXT_LINES), Math.min(lines.length - 1, i + CONTEXT_LINES)]);
+      }
+    }
+    if (windows.length === 0) return "No matches found.";
+
+    // Merge overlapping/adjacent windows so shared context isn't duplicated.
+    windows.sort((a, b) => a[0] - b[0]);
+    const merged: Array<[number, number]> = [];
+    for (const [start, end] of windows) {
+      const last = merged[merged.length - 1];
+      if (last && start <= last[1] + 1) {
+        last[1] = Math.max(last[1], end);
+      } else {
+        merged.push([start, end]);
+      }
+    }
+
+    const capped = merged.slice(0, MAX_WINDOWS);
+    const blocks = capped.map(([start, end]) => lines.slice(start, end + 1).join("\n"));
+    return blocks.join("\n---\n");
   },
 });

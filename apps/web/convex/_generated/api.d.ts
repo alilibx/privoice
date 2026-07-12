@@ -25,6 +25,7 @@ import type * as retrieval_config from "../retrieval/config.js";
 import type * as retrieval_fuse from "../retrieval/fuse.js";
 import type * as retrieval_pack from "../retrieval/pack.js";
 import type * as retrieval_rerank from "../retrieval/rerank.js";
+import type * as retrieval_retrieve from "../retrieval/retrieve.js";
 import type * as retrieval_types from "../retrieval/types.js";
 import type * as settings from "../settings.js";
 import type * as tools from "../tools.js";
@@ -53,6 +54,7 @@ declare const fullApi: ApiFromModules<{
   "retrieval/fuse": typeof retrieval_fuse;
   "retrieval/pack": typeof retrieval_pack;
   "retrieval/rerank": typeof retrieval_rerank;
+  "retrieval/retrieve": typeof retrieval_retrieve;
   "retrieval/types": typeof retrieval_types;
   settings: typeof settings;
   tools: typeof tools;

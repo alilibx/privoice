@@ -74,3 +74,25 @@ export const searchQuery = internalQuery({
   },
   handler: async (ctx, args): Promise<Bm25Hit[]> => bm25Search(ctx, args),
 });
+
+/**
+ * Concatenated chunk text for one user-owned source, in chunk order — used
+ * by tools.ts's `pinpoint` to regex-search within a single known source
+ * (e.g. one document or meeting) rather than across the whole corpus.
+ * Scoped via `by_user_sourceId` on (userId, sourceId), so a caller can never
+ * read another user's chunks even if it somehow guessed a valid sourceId.
+ * Returns "" if the user has no chunks for that sourceId.
+ */
+export const linesFor = internalQuery({
+  args: { userId: v.id("users"), sourceId: v.string() },
+  handler: async (ctx, { userId, sourceId }): Promise<string> => {
+    const rows = await ctx.db
+      .query("knowledgeChunks")
+      .withIndex("by_user_sourceId", (q) =>
+        q.eq("userId", userId).eq("sourceId", sourceId),
+      )
+      .collect();
+    rows.sort((a, b) => a.chunkIndex - b.chunkIndex);
+    return rows.map((r) => r.chunkText).join("\n");
+  },
+});

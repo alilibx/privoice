@@ -1,10 +1,10 @@
-// Unit tests for the searchDocuments/searchMeetings agent tools' userId
-// resolution — the single most security-critical piece of C2 Task 2: these
-// tools must always scope to the AUTHENTICATED CALLER's userId (injected by
-// the agent runtime onto `ctx.userId`, see chat.ts's `sendMessage` and
-// createTool.js's `wrapTools`), and must never accept or derive a userId
-// from the model/tool-call input (the input schemas below have no `userId`
-// field at all).
+// Unit tests for the searchKnowledge/pinpoint agent tools' userId
+// resolution — the single most security-critical piece of Retrieval v2's
+// Task 7: these tools must always scope to the AUTHENTICATED CALLER's
+// userId (injected by the agent runtime onto `ctx.userId`, see chat.ts's
+// `sendMessage` and createTool.js's `wrapTools`), and must never accept or
+// derive a userId from the model/tool-call input (the input schemas below
+// have no `userId` field at all).
 //
 // These call `tool.execute` directly (bypassing the full agent/LLM runtime,
 // which convex-test cannot run headlessly — see documents.test.ts's ./rag
@@ -13,79 +13,95 @@
 // (carrying `userId`) onto the tool object, then invoke `execute` as a
 // method so `this.ctx` resolves to it.
 import { beforeEach, expect, test, vi } from "vitest";
-import { searchDocuments, searchMeetings } from "./tools";
+import { searchKnowledge, pinpoint } from "./tools";
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
-const { ragSearchMock } = vi.hoisted(() => ({
-  ragSearchMock: vi.fn(
-    async (_ctx: unknown, args: { userId: string; query: string }) => ({
-      text: `docs-for:${args.userId}:${args.query}`,
-      results: [],
-      entries: [],
-      usage: {},
+const { retrieveMock } = vi.hoisted(() => ({
+  retrieveMock: vi.fn(
+    async (
+      _ctx: unknown,
+      args: { userId: string; query: string; source?: string; pinnedSourceIds: string[] },
+    ) => ({
+      pack: `pack-for:${args.userId}:${args.query}`,
+      sources: [{ sourceId: "doc1", title: "Doc One", source: "document" }],
     }),
   ),
 }));
-vi.mock("./rag", () => ({ ragSearch: ragSearchMock }));
+vi.mock("./retrieval/retrieve", () => ({ retrieve: retrieveMock }));
 
-function withCtx(ctx: Record<string, unknown>) {
-  return { ...searchDocuments, ctx } as typeof searchDocuments & {
-    ctx: unknown;
-  };
+function withCtx<T extends object>(tool: T, ctx: Record<string, unknown>) {
+  return { ...tool, ctx } as T & { ctx: unknown };
 }
 
-test("searchDocuments scopes ragSearch to ctx.userId, never a client-supplied id", async () => {
-  const tool = withCtx({ userId: "alice_id" });
+test("searchKnowledge scopes retrieve to ctx.userId, never a client-supplied id", async () => {
+  const tool = withCtx(searchKnowledge, { userId: "alice_id" });
   const result = await tool.execute!(
     { query: "roadmap" },
     { toolCallId: "t1", messages: [] } as any,
   );
-  expect(ragSearchMock).toHaveBeenCalledWith(
-    expect.anything(),
-    { userId: "alice_id", query: "roadmap" },
-  );
-  expect(result).toBe("docs-for:alice_id:roadmap");
+  expect(retrieveMock).toHaveBeenCalledWith(expect.anything(), {
+    userId: "alice_id",
+    query: "roadmap",
+    source: undefined,
+    pinnedSourceIds: [],
+  });
+  expect(result).toContain("pack-for:alice_id:roadmap");
+  expect(result).toContain("<<<SOURCES>>>");
+  expect(result).toContain(JSON.stringify([{ sourceId: "doc1", title: "Doc One", source: "document" }]));
 });
 
-test("searchDocuments fails closed when ctx carries no userId", async () => {
-  const tool = { ...searchDocuments, ctx: {} } as typeof searchDocuments & {
-    ctx: unknown;
-  };
+test("searchKnowledge fails closed when ctx carries no userId", async () => {
+  const tool = withCtx(searchKnowledge, {});
   await expect(
     tool.execute!({ query: "x" }, { toolCallId: "t2", messages: [] } as any),
   ).rejects.toThrow();
-  expect(ragSearchMock).not.toHaveBeenCalled();
+  expect(retrieveMock).not.toHaveBeenCalled();
 });
 
-test("searchMeetings runs the internal query scoped to ctx.userId", async () => {
-  const runQuery = vi.fn(async (_ref: unknown, args: { userId: string; query: string }) => [
-    { title: `Sync for ${args.userId}`, notes: "notes" },
-  ]);
-  const tool = {
-    ...searchMeetings,
-    ctx: { userId: "bob_id", runQuery },
-  } as typeof searchMeetings & { ctx: unknown };
+test("pinpoint scopes its runQuery to ctx.userId", async () => {
+  const runQuery = vi.fn(
+    async (_ref: unknown, _args: { userId: string; sourceId: string }) =>
+      `line one\nline two\nDate: 2024-05-01\nline four\nline five`,
+  );
+  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
   const result = await tool.execute!(
-    { query: "sync" },
+    { sourceId: "doc1", pattern: "Date:" },
     { toolCallId: "t3", messages: [] } as any,
   );
   expect(runQuery).toHaveBeenCalledTimes(1);
   const [, args] = runQuery.mock.calls[0];
-  expect(args).toEqual({ userId: "bob_id", query: "sync" });
-  expect(result).toContain("Sync for bob_id");
+  expect(args).toEqual({ userId: "bob_id", sourceId: "doc1" });
+  expect(result).toContain("Date: 2024-05-01");
 });
 
-test("searchMeetings fails closed when ctx carries no userId", async () => {
+test("pinpoint returns a friendly message when nothing matches", async () => {
+  const runQuery = vi.fn(async () => "line one\nline two\nline three");
+  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "doc1", pattern: "nomatch-xyz" },
+    { toolCallId: "t4", messages: [] } as any,
+  );
+  expect(result).toBe("No matches found.");
+});
+
+test("pinpoint returns a friendly message for an invalid regex pattern", async () => {
+  const runQuery = vi.fn(async () => "line one\nline two");
+  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
+  const result = await tool.execute!(
+    { sourceId: "doc1", pattern: "(unterminated" },
+    { toolCallId: "t5", messages: [] } as any,
+  );
+  expect(result).toBe("Invalid search pattern.");
+});
+
+test("pinpoint fails closed when ctx carries no userId", async () => {
   const runQuery = vi.fn();
-  const tool = {
-    ...searchMeetings,
-    ctx: { runQuery },
-  } as typeof searchMeetings & { ctx: unknown };
+  const tool = withCtx(pinpoint, { runQuery });
   await expect(
-    tool.execute!({ query: "x" }, { toolCallId: "t4", messages: [] } as any),
+    tool.execute!({ sourceId: "doc1", pattern: "x" }, { toolCallId: "t6", messages: [] } as any),
   ).rejects.toThrow();
   expect(runQuery).not.toHaveBeenCalled();
 });

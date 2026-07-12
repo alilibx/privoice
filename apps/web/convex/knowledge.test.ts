@@ -35,3 +35,39 @@ test("insert then bm25 search returns matching chunks, delete removes them", asy
   );
   expect(after).toHaveLength(0);
 });
+
+test("linesFor returns a user's chunk text in order, scoped by sourceId, and empty for a stranger", async () => {
+  const t = convexTest(schema);
+  const userId = await t.run(async (ctx) => ctx.db.insert("users", {} as any));
+  const otherUserId = await t.run(async (ctx) =>
+    ctx.db.insert("users", {} as any),
+  );
+  await t.mutation(internal.knowledge.insertChunks, {
+    userId,
+    entryId: "e1",
+    source: "document",
+    sourceId: "d1",
+    title: "Contract",
+    chunks: ["Clause 1: parties agree", "Clause 2: payment due May 1"],
+  });
+
+  const text = await t.query(internal.knowledge.linesFor, {
+    userId,
+    sourceId: "d1",
+  });
+  expect(text).toBe("Clause 1: parties agree\nClause 2: payment due May 1");
+
+  // A different user (even with the same sourceId) sees nothing.
+  const stranger = await t.query(internal.knowledge.linesFor, {
+    userId: otherUserId,
+    sourceId: "d1",
+  });
+  expect(stranger).toBe("");
+
+  // Unknown sourceId for the right user also returns "".
+  const missing = await t.query(internal.knowledge.linesFor, {
+    userId,
+    sourceId: "does-not-exist",
+  });
+  expect(missing).toBe("");
+});

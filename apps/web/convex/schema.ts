@@ -67,6 +67,7 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_source", ["userId", "source", "sourceId"])
+    .index("by_user_sourceId", ["userId", "sourceId"])
     .searchIndex("by_text", {
       searchField: "chunkText",
       filterFields: ["userId", "source"],
