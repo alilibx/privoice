@@ -52,4 +52,36 @@ export default defineSchema({
     modelId: v.string(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  // Retrieval v2 (Task 9): the ids of documents/meetings attached to the
+  // message currently being generated, set by sendMessage right before
+  // streamText (after server-side validation that each id belongs to the
+  // caller) and cleared right after generation finishes. searchKnowledge
+  // reads this per-user row so pinAndBoost can prioritize the attachment for
+  // THIS turn only — never a durable "always boost this doc" setting.
+  retrievalPins: defineTable({
+    userId: v.id("users"),
+    sourceIds: v.array(v.string()),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
+  // Retrieval v2: mirrors chunk text (from documents/meetings) into a Convex
+  // full-text-searchable table. This is the BM25 arm of the hybrid pipeline;
+  // later tasks fuse these hits with vector search results in candidates.ts.
+  knowledgeChunks: defineTable({
+    userId: v.id("users"),
+    entryId: v.string(),
+    source: v.string(), // "document" | "meeting"
+    sourceId: v.string(),
+    title: v.string(),
+    chunkText: v.string(),
+    chunkIndex: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_source", ["userId", "source", "sourceId"])
+    .index("by_user_sourceId", ["userId", "sourceId"])
+    .searchIndex("by_text", {
+      searchField: "chunkText",
+      filterFields: ["userId", "source"],
+    }),
 });

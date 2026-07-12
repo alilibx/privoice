@@ -1,12 +1,38 @@
 import { useSmoothText } from "@convex-dev/agent/react";
 import ToolTrace, { type ToolPart } from "@/features/chat/ToolTrace";
 import Markdown from "@/features/chat/Markdown";
+import Sources, { parseSources, type SourceRef } from "@/features/chat/Sources";
 import AttachmentCard, {
   type Attachment,
   type AttachmentStatus,
 } from "@/features/chat/AttachmentCard";
 import { displayText } from "@/features/chat/attachment-prompt";
 import BrandMark from "@/components/layout/BrandMark";
+
+// searchKnowledge tool outputs carry a trailing <<<SOURCES>>> JSON block; pull
+// it out of every matching part so multi-step turns (e.g. search then
+// pinpoint) still surface every source that was actually cited.
+//
+// Each call's SourceRef.n restarts at 1 (see pack.ts's packContext), so
+// concatenating sources across multiple tool-searchKnowledge parts in one
+// message can produce duplicate `n` values — which would mean duplicate
+// `id="source-N"` DOM nodes, duplicate React keys, and an ambiguous
+// rendered list. Renumber sequentially across the merged list so `n` is
+// unique per rendered message. Note this can't perfectly reconcile the
+// agent's [n] markers in the answer text, which still reference each call's
+// own per-call numbering — but it guarantees unique DOM ids/keys and a
+// coherent Sources list, and a single searchKnowledge call (the common
+// case) is unaffected since it's already a no-op renumbering.
+function sourcesFromParts(parts: ToolPart[]): SourceRef[] {
+  const found: SourceRef[] = [];
+  for (const part of parts ?? []) {
+    if (part.type !== "tool-searchKnowledge") continue;
+    const output = typeof part.output === "string" ? part.output : String(part.output ?? "");
+    if (!output) continue;
+    found.push(...parseSources(output));
+  }
+  return found.map((s, i) => ({ ...s, n: i + 1 }));
+}
 
 export type ChatMessage = {
   key: string;
@@ -67,12 +93,14 @@ export default function MessageBubble({
   }
 
   const hasText = (visibleText ?? "").trim() !== "";
+  const sources = sourcesFromParts(message.parts);
   return (
     <div className="msg-in flex gap-3 sm:gap-4">
       <BrandMark className="mt-0.5 h-8 w-8 shrink-0" />
       <div className="min-w-0 flex-1 space-y-3">
         <ToolTrace parts={message.parts} />
         {hasText && <Markdown>{visibleText}</Markdown>}
+        {sources.length > 0 && <Sources sources={sources} />}
       </div>
     </div>
   );

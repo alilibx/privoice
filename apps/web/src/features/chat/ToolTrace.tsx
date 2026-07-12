@@ -10,8 +10,8 @@ export type ToolPart = {
 };
 
 const LABELS: Record<string, string> = {
-  "tool-searchDocuments": "Searched your documents",
-  "tool-searchMeetings": "Searched your meetings",
+  "tool-searchKnowledge": "Searched your knowledge",
+  "tool-pinpoint": "Pinpointed exact matches",
 };
 
 function humanizeToolName(type: string) {
@@ -36,10 +36,20 @@ function isRunning(state?: string) {
   return state !== "output-available" && state !== "output-error";
 }
 
+// tool-searchKnowledge output carries a trailing <<<SOURCES>>> + JSON block
+// (see tools.ts / Sources.tsx) meant for the Sources panel, not for a raw
+// debug dump — strip it before showing the tool's expand panel.
+const SOURCES_MARKER = "<<<SOURCES>>>";
+
+function stripSourcesTail(output: string): string {
+  const idx = output.indexOf(SOURCES_MARKER);
+  return (idx === -1 ? output : output.slice(0, idx)).trimEnd();
+}
+
 function Step({ part }: { part: ToolPart }) {
   const [open, setOpen] = useState(false);
   const query = queryFrom(part.input);
-  const output = String(part.output ?? "");
+  const output = stripSourcesTail(String(part.output ?? ""));
   const hasOutput = output.trim() !== "";
   const running = isRunning(part.state);
   const error = part.state === "output-error";

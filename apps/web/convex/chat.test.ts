@@ -8,6 +8,13 @@
 // security-critical part: a thread is only ever visible/usable by the
 // userId that created it, resolved server-side from the authenticated
 // identity — never from client input.
+//
+// The pinnedSourceIds tests (Task 9) below also insert real `documents` rows
+// via ctx.storage.store(), which needs a real Blob#arrayBuffer() — the
+// project's default jsdom environment's Blob polyfill doesn't implement it
+// (see documents.test.ts's identical note). Force node's environment for
+// this file so that works.
+// @vitest-environment node
 import { convexTest } from "convex-test";
 import { expect, test, vi } from "vitest";
 import schema from "./schema";
@@ -212,4 +219,100 @@ test("getThreadOwner (internal) only exposes the owning row, used by sendMessage
     threadId: "does-not-exist",
   });
   expect(missing).toBeNull();
+});
+
+// Task 9: pinnedSourceIds — validatePins/getPins/setPins.
+async function insertOwnedDoc(
+  t: ReturnType<typeof convexTest>,
+  userId: string,
+  filename: string,
+) {
+  return await t.run(async (ctx) => {
+    const storageId = await ctx.storage.store(new Blob(["x"]));
+    return await ctx.db.insert("documents", {
+      userId: userId as any,
+      storageId,
+      filename,
+      mimeType: "application/pdf",
+      kind: "pdf",
+      sizeBytes: 10,
+      status: "ready",
+      chunkCount: 1,
+      createdAt: Date.now(),
+    });
+  });
+}
+
+test("validatePins keeps only ids the caller owns (a document row of theirs), dropping a foreign id and a nonexistent one", async () => {
+  const t = convexTest(schema, modules);
+  const { userId: aliceId } = await asNewUser(t, "alice@example.com");
+  const { userId: bobId } = await asNewUser(t, "bob@example.com");
+
+  const aliceDocId = await insertOwnedDoc(t, aliceId, "notes.pdf");
+  const bobDocId = await insertOwnedDoc(t, bobId, "bob.pdf");
+
+  const valid = await t.query(internal.chat.validatePins, {
+    userId: aliceId,
+    sourceIds: [aliceDocId, bobDocId, "not-a-real-id"],
+  });
+  expect(valid).toEqual([aliceDocId]);
+});
+
+test("setPins upserts the user's row and getPins reads it back; clearing sets an empty array", async () => {
+  const t = convexTest(schema, modules);
+  const { userId: aliceId } = await asNewUser(t, "alice@example.com");
+
+  expect(await t.query(internal.chat.getPins, { userId: aliceId })).toEqual([]);
+
+  await t.mutation(internal.chat.setPins, {
+    userId: aliceId,
+    sourceIds: ["doc1", "doc2"],
+  });
+  expect(await t.query(internal.chat.getPins, { userId: aliceId })).toEqual([
+    "doc1",
+    "doc2",
+  ]);
+
+  // Upsert (patch), not a second row.
+  await t.mutation(internal.chat.setPins, { userId: aliceId, sourceIds: ["doc3"] });
+  expect(await t.query(internal.chat.getPins, { userId: aliceId })).toEqual(["doc3"]);
+
+  await t.mutation(internal.chat.setPins, { userId: aliceId, sourceIds: [] });
+  expect(await t.query(internal.chat.getPins, { userId: aliceId })).toEqual([]);
+});
+
+test("sendMessage validates pinnedSourceIds server-side (drops a foreign id), pins them for the duration of generation, then clears them", async () => {
+  const t = convexTest(schema, modules);
+  const { t: alice, userId: aliceId } = await asNewUser(t, "alice@example.com");
+  const { userId: bobId } = await asNewUser(t, "bob@example.com");
+  const threadId = await alice.mutation(api.chat.createThread, {});
+
+  const aliceDocId = await insertOwnedDoc(t, aliceId, "notes.pdf");
+  const bobDocId = await insertOwnedDoc(t, bobId, "bob.pdf");
+
+  // Capture what's pinned *during* generation by reading it from inside the
+  // mocked streamText/consumeStream call, before sendMessage's own cleanup
+  // runs.
+  let pinsDuringGeneration: string[] | null = null;
+  continueThreadMock.mockImplementationOnce(async (_ctx: unknown, args: any) => ({
+    thread: {
+      threadId: args.threadId,
+      streamText: vi.fn(async () => ({
+        consumeStream: vi.fn(async () => {
+          pinsDuringGeneration = await t.query(internal.chat.getPins, {
+            userId: aliceId,
+          });
+        }),
+      })),
+    },
+  }));
+
+  await alice.action(api.chat.sendMessage, {
+    threadId,
+    text: "hi",
+    pinnedSourceIds: [aliceDocId, bobDocId],
+  });
+
+  expect(pinsDuringGeneration).toEqual([aliceDocId]);
+  expect(await t.query(internal.chat.getPins, { userId: aliceId })).toEqual([]);
 });

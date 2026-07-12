@@ -132,6 +132,72 @@ export const setThreadTitleIfEmpty = internalMutation({
   },
 });
 
+// Internal-only: reads back the ids the caller owns from the ones the
+// client claimed to attach. Checks BOTH `documents` and `meetings` by `_id`
+// AND `userId` match — a raw client-supplied id is otherwise meaningless
+// (could belong to another user, or not exist/be the wrong table at all).
+// `ctx.db.normalizeId` safely turns a string into a validated Id for a given
+// table (returning null if it isn't one), so this never throws on garbage
+// input — it just silently drops it, per the security requirement that a
+// non-owned id is dropped rather than surfaced as an error.
+export const validatePins = internalQuery({
+  args: { userId: v.id("users"), sourceIds: v.array(v.string()) },
+  handler: async (ctx, { userId, sourceIds }) => {
+    const valid: string[] = [];
+    for (const sourceId of sourceIds) {
+      const docId = ctx.db.normalizeId("documents", sourceId);
+      if (docId !== null) {
+        const doc = await ctx.db.get(docId);
+        if (doc !== null && doc.userId === userId) {
+          valid.push(sourceId);
+          continue;
+        }
+      }
+      const meetingId = ctx.db.normalizeId("meetings", sourceId);
+      if (meetingId !== null) {
+        const meeting = await ctx.db.get(meetingId);
+        if (meeting !== null && meeting.userId === userId) {
+          valid.push(sourceId);
+        }
+      }
+    }
+    return valid;
+  },
+});
+
+// Internal-only: the per-user "pinned for this turn" row read by
+// searchKnowledge (see tools.ts) so pinAndBoost can prioritize whatever
+// documents/meetings are attached to the message currently being generated.
+export const getPins = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const row = await ctx.db
+      .query("retrievalPins")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    return row?.sourceIds ?? [];
+  },
+});
+
+// Internal-only: upserts (never inserts a second row per user) the caller's
+// pin set. `sendMessage` calls this with the VALIDATED ids right before
+// generation starts, then again with `[]` right after generation finishes —
+// pins are scoped to a single turn, not a durable setting.
+export const setPins = internalMutation({
+  args: { userId: v.id("users"), sourceIds: v.array(v.string()) },
+  handler: async (ctx, { userId, sourceIds }) => {
+    const row = await ctx.db
+      .query("retrievalPins")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (row !== null) {
+      await ctx.db.patch(row._id, { sourceIds, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("retrievalPins", { userId, sourceIds, updatedAt: Date.now() });
+    }
+  },
+});
+
 export const listMessages = query({
   args: {
     threadId: v.string(),
@@ -148,8 +214,17 @@ export const listMessages = query({
 });
 
 export const sendMessage = action({
-  args: { threadId: v.string(), text: v.string() },
-  handler: async (ctx, { threadId, text }) => {
+  args: {
+    threadId: v.string(),
+    text: v.string(),
+    // Ids of documents/meetings attached to this message by the client.
+    // SECURITY: this is untrusted client input — never stored or used
+    // as-is. Validated below via `internal.chat.validatePins`, which drops
+    // anything the caller doesn't own, before it's ever persisted or read by
+    // a tool.
+    pinnedSourceIds: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { threadId, text, pinnedSourceIds }) => {
     const userId = await requireUserId(ctx);
     await authorizeThread(ctx, threadId, userId);
     const trimmed = text.trim();
@@ -159,33 +234,53 @@ export const sendMessage = action({
         title: trimmed.slice(0, 50),
       });
     }
-    // Passing `userId` explicitly here (the server-resolved authenticated
-    // caller, never client input) is what makes every tool call during this
-    // generation see `ctx.userId === userId` — see start.js's
-    // `opts.userId ?? thread.userId` fallback and tools.ts's
-    // `requireCallerUserId`. This is the crux of the per-user tool isolation:
-    // it holds regardless of what's stored on the thread itself.
-    const { thread } = await chatAgent.continueThread(ctx, {
-      threadId,
+    // Validate the claimed attachment ids against ownership BEFORE they're
+    // pinned for this turn — a non-owned id is silently dropped, never
+    // trusted. Pins are set unconditionally (even to `[]`) so any stale pin
+    // from a prior turn (e.g. left over from an action that crashed before
+    // its own cleanup ran) can never leak into this generation.
+    const validPinnedSourceIds = await ctx.runQuery(internal.chat.validatePins, {
       userId,
+      sourceIds: pinnedSourceIds ?? [],
     });
-    // SECURITY: the generation model is resolved and validated server-side,
-    // never taken from client input (sendMessage's own args have no model
-    // field at all). `getUserModel` returns whatever's stored, but we
-    // re-validate here and fail closed to DEFAULT_MODEL — defense in depth
-    // against a stored value that somehow bypassed setModel's allowlist
-    // check.
-    const rawModelId = await ctx.runQuery(internal.chat.getUserModel, {
+    await ctx.runMutation(internal.chat.setPins, {
       userId,
+      sourceIds: validPinnedSourceIds,
     });
-    const modelId = isAllowedModel(rawModelId) ? rawModelId : DEFAULT_MODEL;
-    const result = await thread.streamText(
-      { prompt: text, model: openrouter.chat(modelId) },
-      { saveStreamDeltas: true },
-    );
-    // Drain the stream fully within the action so every delta is saved and
-    // the action doesn't return before generation (and any tool calls)
-    // finish.
-    await result.consumeStream();
+    try {
+      // Passing `userId` explicitly here (the server-resolved authenticated
+      // caller, never client input) is what makes every tool call during this
+      // generation see `ctx.userId === userId` — see start.js's
+      // `opts.userId ?? thread.userId` fallback and tools.ts's
+      // `requireCallerUserId`. This is the crux of the per-user tool isolation:
+      // it holds regardless of what's stored on the thread itself.
+      const { thread } = await chatAgent.continueThread(ctx, {
+        threadId,
+        userId,
+      });
+      // SECURITY: the generation model is resolved and validated server-side,
+      // never taken from client input (sendMessage's own args have no model
+      // field at all). `getUserModel` returns whatever's stored, but we
+      // re-validate here and fail closed to DEFAULT_MODEL — defense in depth
+      // against a stored value that somehow bypassed setModel's allowlist
+      // check.
+      const rawModelId = await ctx.runQuery(internal.chat.getUserModel, {
+        userId,
+      });
+      const modelId = isAllowedModel(rawModelId) ? rawModelId : DEFAULT_MODEL;
+      const result = await thread.streamText(
+        { prompt: text, model: openrouter.chat(modelId) },
+        { saveStreamDeltas: true },
+      );
+      // Drain the stream fully within the action so every delta is saved and
+      // the action doesn't return before generation (and any tool calls)
+      // finish.
+      await result.consumeStream();
+    } finally {
+      // Pins are scoped to this single turn only — always clear them once
+      // generation is done (or has thrown), so they never leak into the
+      // next, unrelated message.
+      await ctx.runMutation(internal.chat.setPins, { userId, sourceIds: [] });
+    }
   },
 });

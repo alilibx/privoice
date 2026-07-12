@@ -175,7 +175,11 @@ export default function Chat() {
         trimmed,
         atts.map((a) => a.filename),
       );
-      await sendMessage({ threadId: tid, text: prompt });
+      await sendMessage({
+        threadId: tid,
+        text: prompt,
+        pinnedSourceIds: atts.map((a) => a.docId),
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send message");
       setPending((p) => {
