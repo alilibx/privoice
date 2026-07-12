@@ -41,4 +41,15 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_thread", ["threadId"]),
+
+  // Per-user chat-model preference (Task 6). `modelId` is only ever written
+  // by settings.ts's `setModel` after validating it against
+  // models.shared.ts's MODEL_ALLOWLIST — never trust this column's contents
+  // as pre-validated when reading it back (see chat.ts's getUserModel, which
+  // re-checks `isAllowedModel` and fails closed to DEFAULT_MODEL).
+  userSettings: defineTable({
+    userId: v.id("users"),
+    modelId: v.string(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 });
