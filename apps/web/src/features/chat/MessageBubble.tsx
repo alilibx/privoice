@@ -12,6 +12,17 @@ import BrandMark from "@/components/layout/BrandMark";
 // searchKnowledge tool outputs carry a trailing <<<SOURCES>>> JSON block; pull
 // it out of every matching part so multi-step turns (e.g. search then
 // pinpoint) still surface every source that was actually cited.
+//
+// Each call's SourceRef.n restarts at 1 (see pack.ts's packContext), so
+// concatenating sources across multiple tool-searchKnowledge parts in one
+// message can produce duplicate `n` values — which would mean duplicate
+// `id="source-N"` DOM nodes, duplicate React keys, and an ambiguous
+// rendered list. Renumber sequentially across the merged list so `n` is
+// unique per rendered message. Note this can't perfectly reconcile the
+// agent's [n] markers in the answer text, which still reference each call's
+// own per-call numbering — but it guarantees unique DOM ids/keys and a
+// coherent Sources list, and a single searchKnowledge call (the common
+// case) is unaffected since it's already a no-op renumbering.
 function sourcesFromParts(parts: ToolPart[]): SourceRef[] {
   const found: SourceRef[] = [];
   for (const part of parts ?? []) {
@@ -20,7 +31,7 @@ function sourcesFromParts(parts: ToolPart[]): SourceRef[] {
     if (!output) continue;
     found.push(...parseSources(output));
   }
-  return found;
+  return found.map((s, i) => ({ ...s, n: i + 1 }));
 }
 
 export type ChatMessage = {

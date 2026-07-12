@@ -251,6 +251,38 @@ test("attachment golden: pinned doc-new is sources[0] on a vague query", async (
   }
 });
 
+// B2 regression, exercised through the full eval harness: the golden above
+// always runs with rerank DISABLED (OFFLINE_CFG), so it never covered the
+// case where the rerank stage itself drops the pinned candidate. Enable
+// rerank here and stub `deps.rerank` to be adversarial — it drops doc-new
+// entirely from what it returns — and assert the pin-reinjection fix still
+// puts doc-new at sources[0].
+test("attachment golden with rerank enabled: adversarial rerank dropping doc-new still yields it as sources[0]", async () => {
+  const { t, userId } = await setup();
+  const fullCorpus = [...CORPUS, DOC_NEW];
+  const cfg = { ...RETRIEVAL_CONFIG, rerankEnabled: true };
+
+  const result = await t.action(async (ctx) =>
+    retrieve(ctx, {
+      userId,
+      query: "what is this",
+      pinnedSourceIds: ["doc-new"],
+      cfg,
+      deps: {
+        vector: keywordOverlapVector(fullCorpus),
+        // Adversarial reranker: never returns doc-new, even though it was
+        // in the candidate pool passed to it.
+        rerank: async (cands) => cands.filter((c) => c.sourceId !== "doc-new"),
+      },
+    }),
+  );
+
+  expect(result.sources[0]?.sourceId).toBe("doc-new");
+  for (const s of result.sources) {
+    expect(ALL_SEEDED_IDS.has(s.sourceId)).toBe(true);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 4. BM25-only recall — makes the REAL bm25 arm the sole decider.
 //

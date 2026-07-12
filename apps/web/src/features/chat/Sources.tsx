@@ -17,9 +17,11 @@ function isSourceRef(value: unknown): value is SourceRef {
 }
 
 // The searchKnowledge tool appends a machine-readable sources block after a
-// sentinel marker; the model never sees (or repeats) this JSON tail. Parse it
-// defensively — a missing marker or malformed JSON just yields no sources
-// rather than breaking the chat.
+// sentinel marker onto the SAME string returned as the tool's output, so the
+// model does receive this JSON tail as part of its context; the client parses
+// this tail from the tool-part output, and the model is instructed to cite
+// [n] rather than reproduce the JSON. Parse it defensively — a missing marker
+// or malformed JSON just yields no sources rather than breaking the chat.
 export function parseSources(toolOutput: string): SourceRef[] {
   const idx = toolOutput.indexOf(SOURCES_MARKER);
   if (idx === -1) return [];

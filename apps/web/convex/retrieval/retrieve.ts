@@ -37,6 +37,20 @@ const EMPTY_RESULT: RetrievalResult = {
   sources: [],
 };
 
+// Dedupe by fusion `key`, keeping the FIRST occurrence's position — used to
+// reinject pinned candidates ahead of the reranked list without duplicating
+// a candidate that both lists happen to contain.
+function dedupeByKey(cands: Candidate[]): Candidate[] {
+  const seen = new Set<string>();
+  const out: Candidate[] = [];
+  for (const cand of cands) {
+    if (seen.has(cand.key)) continue;
+    seen.add(cand.key);
+    out.push(cand);
+  }
+  return out;
+}
+
 // Fail-soft arm runner: on throw, log and return [] so one broken retrieval
 // arm never takes down the other.
 async function runArm(name: string, fn: () => Promise<Candidate[]>): Promise<Candidate[]> {
@@ -70,9 +84,23 @@ export async function retrieve(ctx: ActionCtx, args: RetrieveArgs): Promise<Retr
 
   const fused = fuseCandidates(bm25Results, vectorResults, cfg);
   const boosted = pinAndBoost(fused, args.pinnedSourceIds);
-  const kept = cfg.rerankEnabled
-    ? await rerank(boosted, args.query, cfg)
-    : boosted.slice(0, cfg.keepN);
+
+  let kept: Candidate[];
+  if (cfg.rerankEnabled) {
+    // Pinned sources must always survive rerank (inclusive guarantee), but
+    // an LLM reranker only returns its own chosen `keepN` subset and can
+    // drop a pinned candidate entirely. Reinject the pinned candidates
+    // (from `boosted`, so pin/boost ordering is preserved) ahead of
+    // whatever the reranker kept, dedupe by fusion key, then cap at
+    // keepN — pinned first, reranked remainder after. When there are no
+    // pins this is a no-op and behavior is unchanged.
+    const pinnedSet = new Set(args.pinnedSourceIds);
+    const pinned = boosted.filter((c) => pinnedSet.has(c.sourceId));
+    const ranked = await rerank(boosted, args.query, cfg);
+    kept = dedupeByKey([...pinned, ...ranked]).slice(0, cfg.keepN);
+  } else {
+    kept = boosted.slice(0, cfg.keepN);
+  }
 
   return packContext(kept, cfg);
 }

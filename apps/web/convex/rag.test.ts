@@ -50,9 +50,17 @@ test("ragAdd: forwards namespace/key/title/filters to rag.add, mirrors the SAME 
   expect(Array.isArray(addArgs.chunks)).toBe(true);
   expect(addArgs.chunks.length).toBeGreaterThan(1); // long input actually chunked
 
-  expect(runMutation).toHaveBeenCalledTimes(1);
-  const [ref, mirrorArgs] = runMutation.mock.calls[0];
-  expect(getFunctionName(ref)).toBe(getFunctionName(internal.knowledge.insertChunks));
+  // Idempotent re-ingest: the mirror must be REPLACED, not appended to —
+  // deleteBySource runs before insertChunks so re-ingesting the same
+  // sourceId (e.g. meetings:backfill) never duplicates knowledgeChunks rows
+  // or orphans stale ones.
+  expect(runMutation).toHaveBeenCalledTimes(2);
+  const [deleteRef, deleteArgs] = runMutation.mock.calls[0];
+  expect(getFunctionName(deleteRef)).toBe(getFunctionName(internal.knowledge.deleteBySource));
+  expect(deleteArgs).toEqual({ userId: "u1", source: "document", sourceId: "d1" });
+
+  const [insertRef, mirrorArgs] = runMutation.mock.calls[1];
+  expect(getFunctionName(insertRef)).toBe(getFunctionName(internal.knowledge.insertChunks));
   // Alignment: the exact same chunks array/content passed to rag.add is what
   // gets mirrored into knowledgeChunks.
   expect(mirrorArgs.chunks).toBe(addArgs.chunks);

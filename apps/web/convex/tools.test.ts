@@ -108,6 +108,19 @@ test("pinpoint returns a friendly message for an invalid regex pattern", async (
   expect(result).toBe("Invalid search pattern.");
 });
 
+test("pinpoint rejects an over-long pattern before compiling or querying (ReDoS hardening)", async () => {
+  const runQuery = vi.fn(async () => "line one\nline two");
+  const tool = withCtx(pinpoint, { userId: "bob_id", runQuery });
+  const longPattern = "a".repeat(201);
+  const result = await tool.execute!(
+    { sourceId: "doc1", pattern: longPattern },
+    { toolCallId: "t7", messages: [] } as any,
+  );
+  expect(result).toBe("Search pattern too long.");
+  // Cheap: rejected before ever touching the DB.
+  expect(runQuery).not.toHaveBeenCalled();
+});
+
 test("pinpoint fails closed when ctx carries no userId", async () => {
   const runQuery = vi.fn();
   const tool = withCtx(pinpoint, { runQuery });

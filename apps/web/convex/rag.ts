@@ -26,6 +26,15 @@ export const rag = new RAG<{ source: string; sourceId: string }>(components.rag,
  * runtime forbids — so this must run inside an action. See ingest.ts's
  * "use node" `ingestDocument` action, which already does network I/O for
  * parsing/embeddings.
+ *
+ * `rag.add` REPLACES the vector entry by `key` (sourceId), so re-ingesting an
+ * already-ingested sourceId (e.g. `meetings:backfill`, which re-ingests every
+ * meeting) is idempotent on the vector side. The `knowledgeChunks` mirror is
+ * append-only (`insertChunks` only inserts), so without clearing it first a
+ * re-ingest would duplicate rows and leave the old chunks orphaned — we
+ * delete the prior mirror rows for this exact (userId, source, sourceId)
+ * before inserting the new ones, matching the vector arm's replace-by-key
+ * semantics.
  */
 export async function ragAdd(
   ctx: ActionCtx,
@@ -42,6 +51,11 @@ export async function ragAdd(
       { name: "sourceId", value: args.sourceId },
     ],
     metadata: { title: args.title, source: args.source, sourceId: args.sourceId },
+  });
+  await ctx.runMutation(internal.knowledge.deleteBySource, {
+    userId: args.userId as Id<"users">,
+    source: args.source,
+    sourceId: args.sourceId,
   });
   await ctx.runMutation(internal.knowledge.insertChunks, {
     userId: args.userId as Id<"users">,

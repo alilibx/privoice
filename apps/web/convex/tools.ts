@@ -56,6 +56,11 @@ export const searchKnowledge = createTool({
 
 const CONTEXT_LINES = 2;
 const MAX_WINDOWS = 40;
+// Security hardening: cap the model-supplied regex pattern length BEFORE
+// compiling it, to bound the cost of pathological patterns (ReDoS) —
+// checked before `new RegExp` so an expensive-to-compile-or-run pattern
+// never reaches the regex engine.
+const MAX_PATTERN_LENGTH = 200;
 
 export const pinpoint = createTool({
   description:
@@ -66,6 +71,9 @@ export const pinpoint = createTool({
   }),
   execute: async (ctx, { sourceId, pattern }): Promise<string> => {
     const userId = requireCallerUserId(ctx);
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      return "Search pattern too long.";
+    }
     const text: string = await ctx.runQuery(internal.knowledge.linesFor, {
       userId: userId as Id<"users">,
       sourceId,
