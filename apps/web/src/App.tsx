@@ -4,36 +4,50 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/Dashboard";
 import Documents from "./components/Documents";
+import Chat from "./components/Chat";
+
+type View = "chat" | "meetings" | "documents";
+
+function NavButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active || undefined}
+      className={
+        active
+          ? "rounded-lg bg-primary px-4 py-2 font-semibold text-white"
+          : "rounded-lg px-4 py-2 font-semibold text-on-surface-variant hover:text-primary"
+      }
+    >
+      {children}
+    </button>
+  );
+}
 
 function AuthenticatedShell() {
-  const [view, setView] = useState<"meetings" | "documents">("meetings");
+  const [view, setView] = useState<View>("chat");
   const { signOut } = useAuthActions();
 
   return (
     <>
-      <nav className="mx-auto flex max-w-2xl items-center gap-2 px-6 pt-6">
-        <button
-          onClick={() => setView("meetings")}
-          aria-current={view === "meetings" || undefined}
-          className={
-            view === "meetings"
-              ? "rounded-lg bg-primary px-4 py-2 font-semibold text-white"
-              : "rounded-lg px-4 py-2 font-semibold text-on-surface-variant hover:text-primary"
-          }
-        >
+      <nav className="mx-auto flex max-w-4xl items-center gap-2 px-6 pt-6">
+        <NavButton active={view === "chat"} onClick={() => setView("chat")}>
+          Chat
+        </NavButton>
+        <NavButton active={view === "meetings"} onClick={() => setView("meetings")}>
           Meetings
-        </button>
-        <button
-          onClick={() => setView("documents")}
-          aria-current={view === "documents" || undefined}
-          className={
-            view === "documents"
-              ? "rounded-lg bg-primary px-4 py-2 font-semibold text-white"
-              : "rounded-lg px-4 py-2 font-semibold text-on-surface-variant hover:text-primary"
-          }
-        >
+        </NavButton>
+        <NavButton active={view === "documents"} onClick={() => setView("documents")}>
           Documents
-        </button>
+        </NavButton>
         <button
           onClick={() => signOut()}
           className="ml-auto rounded-lg px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-primary"
@@ -41,7 +55,9 @@ function AuthenticatedShell() {
           Sign out
         </button>
       </nav>
-      {view === "meetings" ? <Dashboard /> : <Documents />}
+      {view === "chat" && <Chat />}
+      {view === "meetings" && <Dashboard />}
+      {view === "documents" && <Documents />}
     </>
   );
 }

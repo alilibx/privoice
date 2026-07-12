@@ -10,6 +10,23 @@ import { expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
+// documents.ts (`remove`) calls ragRemove, and ingest.ts's scheduled action
+// calls ragAdd — both from ./rag.ts, which constructs a real @convex-dev/rag
+// component client and (when its methods are actually invoked) calls
+// OpenRouter over the network for embeddings. convex-test can't run that
+// component headlessly, so mock the whole module: this lets us assert *how*
+// documents.ts drives rag (namespace=userId, key=documentId) without
+// exercising the real component or hitting the network.
+const { ragRemoveMock } = vi.hoisted(() => ({
+  ragRemoveMock: vi.fn(async (_ctx: unknown, _args: { userId: string; key: string }) => {}),
+}));
+vi.mock("./rag", () => ({
+  ragRemove: ragRemoveMock,
+  ragAdd: vi.fn(async () => ({ chunkCount: 0 })),
+  ragSearch: vi.fn(async () => ({ results: [], text: "", entries: [], usage: {} })),
+  rag: {},
+}));
+
 const modules = import.meta.glob("./**/*.ts");
 
 async function asNewUser(t: ReturnType<typeof convexTest>, email: string) {
@@ -24,11 +41,11 @@ async function asNewUser(t: ReturnType<typeof convexTest>, email: string) {
 
 test("create rejects oversize + unsupported, schedules ingest on success", async () => {
   // convex-test's scheduler.runAfter uses a real setTimeout internally, which
-  // would actually fire and run the "use node" ingestDocument action (hitting
-  // the real embedding pipeline, with no API key in test env) shortly after
-  // this test returns — producing an unhandled "Write outside of transaction"
-  // rejection that fails the whole run. Freeze the clock so the scheduled
-  // callback never fires; we only assert that it was queued, not that it ran.
+  // would actually fire and run the "use node" ingestDocument action shortly
+  // after this test returns — producing an unhandled "Write outside of
+  // transaction" rejection that fails the whole run. Freeze the clock so the
+  // scheduled callback never fires; we only assert that it was queued, not
+  // that it ran.
   vi.useFakeTimers();
   try {
     const t = convexTest(schema, modules);
@@ -73,25 +90,28 @@ test("list is isolated per user", async () => {
   expect(await bob.query(api.documents.list, {})).toHaveLength(0);
 });
 
-test("remove refuses another user's doc and cascades chunks", async () => {
+test("remove refuses another user's doc, deletes the row, and calls rag delete with userId namespace + documentId key", async () => {
   const t = convexTest(schema, modules);
   const { t: alice, userId: aId } = await asNewUser(t, "a@x.com");
   const { t: bob } = await asNewUser(t, "b@x.com");
-  const docId = await t.run(async (ctx) => {
-    const id = await ctx.db.insert("documents", {
+  const docId = await t.run(async (ctx) =>
+    ctx.db.insert("documents", {
       userId: aId, storageId: (await ctx.storage.store(new Blob(["x"]))) as any,
       filename: "a.txt", mimeType: "t", kind: "txt", sizeBytes: 1,
       status: "ready", chunkCount: 1, createdAt: 0,
-    });
-    await ctx.db.insert("documentChunks", {
-      userId: aId, documentId: id, chunkIndex: 0, text: "x", embedding: [0.1],
-    });
-    return id;
-  });
+    }),
+  );
+
   await expect(bob.mutation(api.documents.remove, { id: docId })).rejects.toThrow();
+  expect(ragRemoveMock).not.toHaveBeenCalled(); // bob's attempt never reaches rag
+
   await alice.mutation(api.documents.remove, { id: docId });
-  const remaining = await t.run((ctx) => ctx.db.query("documentChunks").collect());
-  expect(remaining).toHaveLength(0);
+  expect(ragRemoveMock).toHaveBeenCalledTimes(1);
+  const [, ragArgs] = ragRemoveMock.mock.calls[0];
+  expect(ragArgs).toEqual({ userId: aId, key: docId }); // namespace=userId, key=documentId
+
+  const remaining = await t.run((ctx) => ctx.db.get(docId));
+  expect(remaining).toBeNull();
 });
 
 test("unauthenticated calls throw", async () => {

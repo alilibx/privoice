@@ -24,18 +24,21 @@ export default defineSchema({
     chunkCount: v.number(),
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
+  // Chunks + embeddings now live in the @convex-dev/rag component (see
+  // rag.ts), namespaced per userId — no local vector-index table needed.
 
-  documentChunks: defineTable({
+  // Side table mapping an @convex-dev/agent threadId (opaque string, owned by
+  // the agent component) to the userId that created it. This is our OWN
+  // ownership record — independent of the agent component's internals — so
+  // listThreads/authorizeThread in chat.ts can enforce per-user isolation
+  // with a real, convex-test-testable query, without needing to trust or
+  // exercise the agent component's thread metadata.
+  chatThreads: defineTable({
+    threadId: v.string(),
     userId: v.id("users"),
-    documentId: v.id("documents"),
-    chunkIndex: v.number(),
-    text: v.string(),
-    embedding: v.array(v.float64()),
+    title: v.optional(v.string()),
+    createdAt: v.number(),
   })
-    .index("by_document", ["documentId"])
-    .vectorIndex("by_embedding", {
-      vectorField: "embedding",
-      dimensions: 3072,
-      filterFields: ["userId"],
-    }),
+    .index("by_user", ["userId"])
+    .index("by_thread", ["threadId"]),
 });

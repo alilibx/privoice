@@ -6,22 +6,6 @@ export const getDoc = internalQuery({
   handler: (ctx, { documentId }) => ctx.db.get(documentId),
 });
 
-export const insertChunks = internalMutation({
-  args: {
-    documentId: v.id("documents"),
-    userId: v.id("users"),
-    chunks: v.array(v.object({ text: v.string(), embedding: v.array(v.float64()) })),
-  },
-  handler: async (ctx, { documentId, userId, chunks }) => {
-    for (let i = 0; i < chunks.length; i++) {
-      await ctx.db.insert("documentChunks", {
-        userId, documentId, chunkIndex: i,
-        text: chunks[i].text, embedding: chunks[i].embedding,
-      });
-    }
-  },
-});
-
 export const setReady = internalMutation({
   args: { documentId: v.id("documents"), chunkCount: v.number() },
   handler: (ctx, { documentId, chunkCount }) =>

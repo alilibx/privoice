@@ -8,14 +8,18 @@
  * @module
  */
 
+import type * as agent from "../agent.js";
 import type * as auth from "../auth.js";
+import type * as chat from "../chat.js";
 import type * as documents from "../documents.js";
 import type * as http from "../http.js";
 import type * as ingest from "../ingest.js";
 import type * as ingestStore from "../ingestStore.js";
 import type * as lib_chunk from "../lib/chunk.js";
-import type * as lib_embed from "../lib/embed.js";
 import type * as meetings from "../meetings.js";
+import type * as openrouter from "../openrouter.js";
+import type * as rag from "../rag.js";
+import type * as tools from "../tools.js";
 
 import type {
   ApiFromModules,
@@ -24,14 +28,18 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agent: typeof agent;
   auth: typeof auth;
+  chat: typeof chat;
   documents: typeof documents;
   http: typeof http;
   ingest: typeof ingest;
   ingestStore: typeof ingestStore;
   "lib/chunk": typeof lib_chunk;
-  "lib/embed": typeof lib_embed;
   meetings: typeof meetings;
+  openrouter: typeof openrouter;
+  rag: typeof rag;
+  tools: typeof tools;
 }>;
 
 /**
@@ -60,4 +68,7 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
+  rag: import("@convex-dev/rag/_generated/component.js").ComponentApi<"rag">;
+};
