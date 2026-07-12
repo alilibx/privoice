@@ -11,6 +11,11 @@ export type ToolPart = {
 
 const LABELS: Record<string, string> = {
   "tool-searchKnowledge": "Searched your knowledge",
+  "tool-grep": "Searched for exact matches",
+  "tool-readDocument": "Read document lines",
+  "tool-listDocuments": "Listed your documents",
+  // Legacy: retained so historical messages that called the old pinpoint tool
+  // (now folded into grep) still render a friendly label.
   "tool-pinpoint": "Pinpointed exact matches",
 };
 
