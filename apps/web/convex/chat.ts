@@ -115,6 +115,28 @@ export const createThread = mutation({
   },
 });
 
+export const deleteThread = mutation({
+  args: { threadId: v.string() },
+  handler: async (ctx, { threadId }) => {
+    const userId = await requireUserId(ctx);
+    // Ownership gate — throws generic "Not found" for a non-owner, never
+    // revealing another user's thread.
+    await authorizeThread(ctx, threadId, userId);
+    // Remove OUR ownership record first, so the thread disappears from the
+    // user's list immediately (no orphan visible if the async agent delete
+    // lags).
+    const row = await ctx.db
+      .query("chatThreads")
+      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+      .unique();
+    if (row !== null) await ctx.db.delete(row._id);
+    // Delete the agent component's messages + streams for this thread
+    // (batched, safe from a mutation ctx).
+    await chatAgent.deleteThreadAsync(ctx, { threadId });
+    return null;
+  },
+});
+
 // Internal-only: sets a thread's title from its first user message, but
 // never overwrites one that's already set. Reached exclusively through
 // `sendMessage`, which has already authorized the caller as the thread

@@ -1,4 +1,10 @@
-import { Plus, X, PanelLeftClose } from "lucide-react";
+import { Plus, X, PanelLeftClose, MoreHorizontal, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export type ThreadRow = {
@@ -29,6 +35,7 @@ export default function ThreadList({
   desktopHidden = false,
   onClose,
   onCollapse,
+  onDelete,
 }: {
   threads: ThreadRow[];
   activeThreadId: string | null;
@@ -38,6 +45,7 @@ export default function ThreadList({
   desktopHidden?: boolean;
   onClose: () => void;
   onCollapse?: () => void;
+  onDelete: (threadId: string) => void;
 }) {
   return (
     <div
@@ -87,13 +95,13 @@ export default function ThreadList({
             {threads.map((t) => {
               const active = activeThreadId === t.threadId;
               return (
-                <li key={t._id}>
+                <li key={t._id} className="group relative">
                   <button
                     type="button"
                     onClick={() => onSelect(t.threadId)}
                     aria-current={active || undefined}
                     className={cn(
-                      "relative flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors",
+                      "relative flex w-full flex-col gap-0.5 rounded-lg py-2 pl-3 pr-9 text-left transition-colors",
                       active ? "bg-accent/70" : "hover:bg-accent/50",
                     )}
                   >
@@ -112,6 +120,27 @@ export default function ThreadList({
                       {relativeDay(t.createdAt)}
                     </span>
                   </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      aria-label="Conversation options"
+                      className={cn(
+                        "absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground outline-none transition hover:bg-accent hover:text-foreground focus-visible:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100",
+                        "opacity-0 group-hover:opacity-100",
+                        active && "opacity-100",
+                      )}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => onDelete(t.threadId)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </li>
               );
             })}

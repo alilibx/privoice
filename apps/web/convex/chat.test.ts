@@ -20,7 +20,7 @@ import { expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 
-const { createThreadMock, continueThreadMock } = vi.hoisted(() => ({
+const { createThreadMock, continueThreadMock, deleteThreadAsyncMock } = vi.hoisted(() => ({
   createThreadMock: vi.fn(
     async (_ctx: unknown, _args: { userId?: string | null }) => ({
       threadId: `thread_${Math.random().toString(36).slice(2)}`,
@@ -39,9 +39,14 @@ const { createThreadMock, continueThreadMock } = vi.hoisted(() => ({
       },
     }),
   ),
+  deleteThreadAsyncMock: vi.fn(async (_ctx: unknown, _args: { threadId: string }) => {}),
 }));
 vi.mock("./agent", () => ({
-  chatAgent: { createThread: createThreadMock, continueThread: continueThreadMock },
+  chatAgent: {
+    createThread: createThreadMock,
+    continueThread: continueThreadMock,
+    deleteThreadAsync: deleteThreadAsyncMock,
+  },
 }));
 
 vi.mock("@convex-dev/agent", async (importOriginal) => {
@@ -315,4 +320,38 @@ test("sendMessage validates pinnedSourceIds server-side (drops a foreign id), pi
 
   expect(pinsDuringGeneration).toEqual([aliceDocId]);
   expect(await t.query(internal.chat.getPins, { userId: aliceId })).toEqual([]);
+});
+
+test("deleteThread removes the caller's thread row and calls the agent delete", async () => {
+  const t = convexTest(schema, modules);
+  const { t: alice } = await asNewUser(t, "alice@example.com");
+
+  const threadId = await alice.mutation(api.chat.createThread, {});
+  expect(await alice.query(api.chat.listThreads, {})).toHaveLength(1);
+
+  deleteThreadAsyncMock.mockClear();
+  await alice.mutation(api.chat.deleteThread, { threadId });
+
+  expect(await alice.query(api.chat.listThreads, {})).toHaveLength(0);
+  expect(deleteThreadAsyncMock).toHaveBeenCalledWith(expect.anything(), { threadId });
+  const rows = await t.run((ctx) =>
+    ctx.db
+      .query("chatThreads")
+      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+      .collect(),
+  );
+  expect(rows).toHaveLength(0);
+});
+
+test("deleteThread throws 'Not found' for a non-owner and leaves the row intact", async () => {
+  const t = convexTest(schema, modules);
+  const { t: alice } = await asNewUser(t, "alice@example.com");
+  const { t: bob } = await asNewUser(t, "bob@example.com");
+
+  const threadId = await alice.mutation(api.chat.createThread, {});
+  deleteThreadAsyncMock.mockClear();
+
+  await expect(bob.mutation(api.chat.deleteThread, { threadId })).rejects.toThrow();
+  expect(await alice.query(api.chat.listThreads, {})).toHaveLength(1);
+  expect(deleteThreadAsyncMock).not.toHaveBeenCalled();
 });
