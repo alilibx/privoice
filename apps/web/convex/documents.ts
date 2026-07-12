@@ -29,15 +29,16 @@ export const create = mutation({
     filename: v.string(),
     mimeType: v.string(),
     sizeBytes: v.number(),
+    contentHash: v.optional(v.string()),
   },
-  handler: async (ctx, { storageId, filename, mimeType, sizeBytes }) => {
+  handler: async (ctx, { storageId, filename, mimeType, sizeBytes, contentHash }) => {
     const userId = await requireUserId(ctx);
     if (sizeBytes > MAX_BYTES) throw new ConvexError("File exceeds 10 MB limit");
     const ext = filename.split(".").pop()?.toLowerCase() ?? "";
     const kind = KIND_BY_EXT[ext];
     if (!kind) throw new ConvexError("Unsupported file type");
     const documentId = await ctx.db.insert("documents", {
-      userId, storageId, filename, mimeType, kind, sizeBytes,
+      userId, storageId, filename, mimeType, kind, sizeBytes, contentHash,
       status: "parsing", chunkCount: 0, createdAt: Date.now(),
     });
     await ctx.scheduler.runAfter(0, internal.ingest.ingestDocument, { documentId });

@@ -167,3 +167,26 @@ test("unauthenticated calls throw", async () => {
     }),
   ).rejects.toThrow();
 });
+
+test("create persists contentHash when provided", async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const { t: alice, userId } = await asNewUser(t, "hash@x.com");
+    const storageId = await alice.run(async (ctx) =>
+      ctx.storage.store(new Blob([new Uint8Array([1, 2, 3])])),
+    );
+    const id = await alice.mutation(api.documents.create, {
+      storageId,
+      filename: "a.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 3,
+      contentHash: "deadbeef",
+    });
+    const doc = await t.run((ctx) => ctx.db.get(id));
+    expect(doc?.contentHash).toBe("deadbeef");
+    expect(doc?.userId).toBe(userId);
+  } finally {
+    vi.useRealTimers();
+  }
+});

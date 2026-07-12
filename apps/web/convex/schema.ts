@@ -22,6 +22,10 @@ export default defineSchema({
     status: v.string(), // "parsing" | "ready" | "failed"
     error: v.optional(v.string()),
     chunkCount: v.number(),
+    // SHA-256 (hex) of the uploaded bytes, set at create time. Optional so
+    // pre-existing rows stay valid; used only to detect exact duplicates
+    // (same filename + same hash) at upload — never a uniqueness constraint.
+    contentHash: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
   // Chunks + embeddings now live in the @convex-dev/rag component (see
