@@ -8,21 +8,25 @@
 import { convexTest } from "convex-test";
 import { expect, test, vi } from "vitest";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
-// documents.ts (`remove`) calls ragRemove, and ingest.ts's scheduled action
-// calls ragAdd — both from ./rag.ts, which constructs a real @convex-dev/rag
-// component client and (when its methods are actually invoked) calls
-// OpenRouter over the network for embeddings. convex-test can't run that
-// component headlessly, so mock the whole module: this lets us assert *how*
-// documents.ts drives rag (namespace=userId, key=documentId) without
-// exercising the real component or hitting the network.
-const { ragRemoveMock } = vi.hoisted(() => ({
-  ragRemoveMock: vi.fn(async (_ctx: unknown, _args: { userId: string; key: string }) => {}),
+// documents.ts (`remove`) calls ragRemoveSource, and ingest.ts's scheduled
+// action calls ragAdd — both from ./rag.ts, which constructs a real
+// @convex-dev/rag component client and (when its methods are actually
+// invoked) calls OpenRouter over the network for embeddings. convex-test
+// can't run that component headlessly, so mock the whole module: this lets
+// us assert *how* documents.ts drives rag (namespace=userId, key=documentId,
+// source="document") without exercising the real component or hitting the
+// network. The `knowledgeChunks` mirror writes (insertChunks/deleteBySource)
+// live in ./knowledge.ts, which is NOT mocked — those run for real.
+const { ragRemoveSourceMock } = vi.hoisted(() => ({
+  ragRemoveSourceMock: vi.fn(
+    async (_ctx: unknown, _args: { userId: string; source: string; sourceId: string }) => {},
+  ),
 }));
 vi.mock("./rag", () => ({
-  ragRemove: ragRemoveMock,
-  ragAdd: vi.fn(async () => ({ chunkCount: 0 })),
+  ragRemoveSource: ragRemoveSourceMock,
+  ragAdd: vi.fn(async () => ({ entryId: "e1", chunkCount: 2 })),
   ragSearch: vi.fn(async () => ({ results: [], text: "", entries: [], usage: {} })),
   rag: {},
 }));
@@ -90,7 +94,7 @@ test("list is isolated per user", async () => {
   expect(await bob.query(api.documents.list, {})).toHaveLength(0);
 });
 
-test("remove refuses another user's doc, deletes the row, and calls rag delete with userId namespace + documentId key", async () => {
+test("remove refuses another user's doc, deletes the row, and calls ragRemoveSource with userId namespace + document source/sourceId", async () => {
   const t = convexTest(schema, modules);
   const { t: alice, userId: aId } = await asNewUser(t, "a@x.com");
   const { t: bob } = await asNewUser(t, "b@x.com");
@@ -103,15 +107,64 @@ test("remove refuses another user's doc, deletes the row, and calls rag delete w
   );
 
   await expect(bob.mutation(api.documents.remove, { id: docId })).rejects.toThrow();
-  expect(ragRemoveMock).not.toHaveBeenCalled(); // bob's attempt never reaches rag
+  expect(ragRemoveSourceMock).not.toHaveBeenCalled(); // bob's attempt never reaches rag
 
   await alice.mutation(api.documents.remove, { id: docId });
-  expect(ragRemoveMock).toHaveBeenCalledTimes(1);
-  const [, ragArgs] = ragRemoveMock.mock.calls[0];
-  expect(ragArgs).toEqual({ userId: aId, key: docId }); // namespace=userId, key=documentId
+  expect(ragRemoveSourceMock).toHaveBeenCalledTimes(1);
+  const [, ragArgs] = ragRemoveSourceMock.mock.calls[0];
+  // namespace=userId, source="document", sourceId=documentId
+  expect(ragArgs).toEqual({ userId: aId, source: "document", sourceId: docId });
 
   const remaining = await t.run((ctx) => ctx.db.get(docId));
   expect(remaining).toBeNull();
+});
+
+test("remove wiring: ragAdd/ragRemoveSource are mocked, but the knowledgeChunks mirror (insertChunks/deleteBySource) is real", async () => {
+  // documents.remove only calls ragRemoveSource (mocked above), so it never
+  // reaches the real rag component or the real knowledge.ts mirror writes —
+  // asserting mirror rows disappear via documents.remove would just be
+  // asserting the mock was called (already covered above). Instead, seed
+  // knowledgeChunks directly via the real (unmocked) internal.knowledge
+  // mutations to prove deleteBySource actually clears rows for a
+  // (userId, source, sourceId), independent of the ragRemoveSource mock.
+  const t = convexTest(schema, modules);
+  const { t: alice, userId: aId } = await asNewUser(t, "a@x.com");
+  const docId = await t.run(async (ctx) =>
+    ctx.db.insert("documents", {
+      userId: aId, storageId: (await ctx.storage.store(new Blob(["x"]))) as any,
+      filename: "a.txt", mimeType: "t", kind: "txt", sizeBytes: 1,
+      status: "ready", chunkCount: 2, createdAt: 0,
+    }),
+  );
+
+  await t.mutation(internal.knowledge.insertChunks, {
+    userId: aId, entryId: "e1", source: "document", sourceId: docId,
+    title: "a.txt", chunks: ["chunk one", "chunk two"],
+  });
+  const seeded = await t.run((ctx) =>
+    ctx.db.query("knowledgeChunks").withIndex("by_source", (q) =>
+      q.eq("userId", aId).eq("source", "document").eq("sourceId", docId),
+    ).collect(),
+  );
+  expect(seeded).toHaveLength(2);
+
+  await t.mutation(internal.knowledge.deleteBySource, {
+    userId: aId, source: "document", sourceId: docId,
+  });
+  const remaining = await t.run((ctx) =>
+    ctx.db.query("knowledgeChunks").withIndex("by_source", (q) =>
+      q.eq("userId", aId).eq("source", "document").eq("sourceId", docId),
+    ).collect(),
+  );
+  expect(remaining).toHaveLength(0);
+
+  // And documents.remove itself still drives ragRemoveSource with the right
+  // source/sourceId tagging, which is what triggers deleteBySource for real.
+  await alice.mutation(api.documents.remove, { id: docId });
+  expect(ragRemoveSourceMock).toHaveBeenCalledWith(
+    expect.anything(),
+    { userId: aId, source: "document", sourceId: docId },
+  );
 });
 
 test("unauthenticated calls throw", async () => {

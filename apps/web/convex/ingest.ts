@@ -49,7 +49,9 @@ export const ingestDocument = internalAction({
       // keyed by documentId within this user's namespace — see rag.ts.
       const { chunkCount } = await ragAdd(ctx, {
         userId: doc.userId,
-        key: documentId,
+        source: "document",
+        sourceId: documentId,
+        title: doc.filename,
         text,
       });
       await ctx.runMutation(internal.ingestStore.setReady, {
