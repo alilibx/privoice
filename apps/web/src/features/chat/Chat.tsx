@@ -3,7 +3,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { useUIMessages } from "@convex-dev/agent/react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Menu, MessagesSquare, PanelLeft } from "lucide-react";
+import { Menu, MessagesSquare, PanelLeft, ArrowDown } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import { MODEL_META, DEFAULT_MODEL } from "../../../convex/models.shared";
 import { useAppShell } from "@/components/layout/app-shell-context";
@@ -17,6 +17,7 @@ import AttachmentCard, {
   type AttachmentStatus,
 } from "@/features/chat/AttachmentCard";
 import { withAttachmentContext, displayText } from "@/features/chat/attachment-prompt";
+import { useStickToBottom } from "@/features/chat/use-stick-to-bottom";
 
 const KIND_BY_EXT: Record<string, string> = {
   pdf: "pdf",
@@ -73,6 +74,14 @@ export default function Chat() {
     () => typeof localStorage !== "undefined" && localStorage.getItem(RAIL_HIDE_KEY) === "1",
   );
 
+  const {
+    ref: scrollRef,
+    atBottom,
+    onScroll,
+    scrollToBottom,
+    stick,
+  } = useStickToBottom<HTMLDivElement>();
+
   function toggleRail() {
     setRailHidden((prev) => {
       const next = !prev;
@@ -118,7 +127,15 @@ export default function Chat() {
     setPending([]);
     setPendingAttachments([]);
     setSentAttachments([]);
-  }, [threadId]);
+    scrollToBottom("auto");
+  }, [threadId, scrollToBottom]);
+
+  // Follow the conversation as it grows/streams — but only if the user is
+  // already at the bottom (stick() gates on that). handleSend force-scrolls
+  // separately, so a send always lands at the latest.
+  useEffect(() => {
+    stick();
+  }, [messages, pending, stick]);
 
   function statusFor(docId: string): AttachmentStatus {
     const doc = documents.find((d) => d._id === docId);
@@ -158,6 +175,9 @@ export default function Chat() {
     setText("");
     setPendingAttachments([]);
     setPending((p) => [...p, { text: trimmed, attachments: atts }]); // optimistic
+    // The user's own send always jumps to the latest, even if they'd scrolled
+    // up. rAF lets the optimistic bubble paint first so scrollHeight is final.
+    requestAnimationFrame(() => scrollToBottom("auto"));
     if (atts.length > 0) {
       setSentAttachments((s) => [...s, { text: trimmed, attachments: atts }]);
     }
@@ -322,7 +342,7 @@ export default function Chat() {
         </header>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto">
           {isEmpty ? (
             <EmptyState onPick={setText} />
           ) : (
@@ -365,6 +385,17 @@ export default function Chat() {
             </div>
           )}
         </div>
+
+        {!atBottom && !isEmpty && (
+          <button
+            type="button"
+            onClick={() => scrollToBottom("smooth")}
+            className="absolute bottom-28 left-1/2 z-10 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border bg-card/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-md backdrop-blur transition hover:border-primary/40"
+          >
+            Jump to latest
+            <ArrowDown className="h-3.5 w-3.5" />
+          </button>
+        )}
 
         {/* Composer */}
         <div className="px-4 pb-4 sm:px-6 sm:pb-6">

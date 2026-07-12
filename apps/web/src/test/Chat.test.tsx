@@ -112,3 +112,20 @@ test("shows a searching-documents affordance while a tool call is in progress", 
   renderChat();
   expect(screen.getByText(/searched your knowledge/i)).toBeInTheDocument();
 });
+
+beforeAll(() => {
+  // jsdom has no layout / scrollTo; stub so the hook's scroll calls are spyable.
+  Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
+});
+
+test("scrolls to bottom after sending a message", async () => {
+  mockedUseUIMessages.mockReturnValue(baseMessages as any);
+  const scrollTo = vi.spyOn(Element.prototype, "scrollTo");
+  renderChat();
+
+  const box = screen.getByPlaceholderText(/Ask about your documents/i);
+  fireEvent.change(box, { target: { value: "Hello there" } });
+  fireEvent.keyDown(box, { key: "Enter" });
+
+  await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+});
