@@ -159,6 +159,48 @@ test("unauthenticated calls throw for every chat function", async () => {
   ).rejects.toThrow();
 });
 
+test("sendMessage sets the thread title from the first message (trimmed, truncated to 50 chars)", async () => {
+  const t = convexTest(schema, modules);
+  const { t: alice } = await asNewUser(t, "alice@example.com");
+  const threadId = await alice.mutation(api.chat.createThread, {});
+
+  const longText =
+    "  this is a fairly long first message that will definitely exceed fifty characters in length  ";
+  await alice.action(api.chat.sendMessage, { threadId, text: longText });
+
+  const rows = await alice.query(api.chat.listThreads, {});
+  expect(rows).toHaveLength(1);
+  expect(rows[0].title).toBe(longText.trim().slice(0, 50));
+  expect(rows[0].title!.length).toBeLessThanOrEqual(50);
+});
+
+test("sendMessage does NOT overwrite an existing title on a second message", async () => {
+  const t = convexTest(schema, modules);
+  const { t: alice } = await asNewUser(t, "alice@example.com");
+  const threadId = await alice.mutation(api.chat.createThread, {});
+
+  await alice.action(api.chat.sendMessage, { threadId, text: "first message" });
+  await alice.action(api.chat.sendMessage, { threadId, text: "second message" });
+
+  const rows = await alice.query(api.chat.listThreads, {});
+  expect(rows).toHaveLength(1);
+  expect(rows[0].title).toBe("first message");
+});
+
+test("setThreadTitleIfEmpty (internal) is only reachable via the ownership-gated sendMessage — a non-owner's sendMessage call cannot set it", async () => {
+  const t = convexTest(schema, modules);
+  const { t: alice } = await asNewUser(t, "alice@example.com");
+  const { t: bob } = await asNewUser(t, "bob@example.com");
+
+  const threadId = await alice.mutation(api.chat.createThread, {});
+  await expect(
+    bob.action(api.chat.sendMessage, { threadId, text: "hijack title" }),
+  ).rejects.toThrow();
+
+  const rows = await alice.query(api.chat.listThreads, {});
+  expect(rows[0].title).toBeUndefined();
+});
+
 test("getThreadOwner (internal) only exposes the owning row, used by sendMessage's action-ctx authorization", async () => {
   const t = convexTest(schema, modules);
   const { t: alice } = await asNewUser(t, "alice@example.com");

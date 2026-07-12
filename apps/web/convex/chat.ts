@@ -5,6 +5,7 @@ import {
   mutation,
   action,
   internalQuery,
+  internalMutation,
   type QueryCtx,
   type MutationCtx,
   type ActionCtx,
@@ -95,6 +96,23 @@ export const createThread = mutation({
   },
 });
 
+// Internal-only: sets a thread's title from its first user message, but
+// never overwrites one that's already set. Reached exclusively through
+// `sendMessage`, which has already authorized the caller as the thread
+// owner — there is no public path that lets a client set an arbitrary
+// thread's title.
+export const setThreadTitleIfEmpty = internalMutation({
+  args: { threadId: v.string(), title: v.string() },
+  handler: async (ctx, { threadId, title }) => {
+    const row = await ctx.db
+      .query("chatThreads")
+      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+      .unique();
+    if (row === null || row.title) return; // missing row, or already titled
+    await ctx.db.patch(row._id, { title });
+  },
+});
+
 export const listMessages = query({
   args: {
     threadId: v.string(),
@@ -115,6 +133,13 @@ export const sendMessage = action({
   handler: async (ctx, { threadId, text }) => {
     const userId = await requireUserId(ctx);
     await authorizeThread(ctx, threadId, userId);
+    const trimmed = text.trim();
+    if (trimmed.length > 0) {
+      await ctx.runMutation(internal.chat.setThreadTitleIfEmpty, {
+        threadId,
+        title: trimmed.slice(0, 50),
+      });
+    }
     // Passing `userId` explicitly here (the server-resolved authenticated
     // caller, never client input) is what makes every tool call during this
     // generation see `ctx.userId === userId` — see start.js's
