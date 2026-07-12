@@ -209,6 +209,15 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       p.state !== "output-error",
   );
 
+  // Hide a completed assistant turn that carried only a tool call and no text
+  // (an intermediate step) — otherwise it renders as an empty bubble.
+  const isEmptyToolTurn =
+    !isUser &&
+    (message.text ?? "").trim() === "" &&
+    message.status !== "streaming" &&
+    !pendingTool;
+  if (isEmptyToolTurn) return null;
+
   return (
     <div className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div

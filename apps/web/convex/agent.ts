@@ -1,4 +1,4 @@
-import { Agent } from "@convex-dev/agent";
+import { Agent, stepCountIs } from "@convex-dev/agent";
 import { components } from "./_generated/api";
 import { openrouter } from "./openrouter";
 import { searchDocuments, searchMeetings } from "./tools";
@@ -15,4 +15,8 @@ export const chatAgent = new Agent(components.agent, {
   instructions:
     "You are Privoice's assistant. Answer clearly and concisely. When the user asks about their documents or meetings, use the searchDocuments / searchMeetings tools and ground your answer in the results, noting the source. If a tool returns nothing relevant, say so instead of inventing facts.",
   tools: { searchDocuments, searchMeetings },
+  // Continue generating after a tool returns (tool call -> tool result ->
+  // final answer) within a single turn — without this the agent stops after
+  // the tool call and produces no text, forcing the user to re-ask.
+  stopWhen: stepCountIs(5),
 });
