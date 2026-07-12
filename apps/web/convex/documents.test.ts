@@ -119,16 +119,16 @@ test("remove refuses another user's doc, deletes the row, and calls ragRemoveSou
   expect(remaining).toBeNull();
 });
 
-test("remove wiring: ragAdd/ragRemoveSource are mocked, but the knowledgeChunks mirror (insertChunks/deleteBySource) is real", async () => {
-  // documents.remove only calls ragRemoveSource (mocked above), so it never
-  // reaches the real rag component or the real knowledge.ts mirror writes —
-  // asserting mirror rows disappear via documents.remove would just be
-  // asserting the mock was called (already covered above). Instead, seed
-  // knowledgeChunks directly via the real (unmocked) internal.knowledge
-  // mutations to prove deleteBySource actually clears rows for a
-  // (userId, source, sourceId), independent of the ragRemoveSource mock.
+test("knowledgeChunks mirror: insertChunks seeds rows, deleteBySource clears them for a (userId, source, sourceId)", async () => {
+  // documents.remove only calls ragRemoveSource (mocked above), so exercising
+  // it here would just re-assert the mock was called (already covered by the
+  // "remove refuses another user's doc..." test above). ragAdd's and
+  // ragRemoveSource's actual driving of these two internal.knowledge
+  // mutations — including chunk/entryId alignment — is covered for real,
+  // without mocking anything, in rag.test.ts. This test only proves the
+  // knowledge.ts mirror mutations themselves work in isolation.
   const t = convexTest(schema, modules);
-  const { t: alice, userId: aId } = await asNewUser(t, "a@x.com");
+  const { userId: aId } = await asNewUser(t, "a@x.com");
   const docId = await t.run(async (ctx) =>
     ctx.db.insert("documents", {
       userId: aId, storageId: (await ctx.storage.store(new Blob(["x"]))) as any,
@@ -157,14 +157,6 @@ test("remove wiring: ragAdd/ragRemoveSource are mocked, but the knowledgeChunks 
     ).collect(),
   );
   expect(remaining).toHaveLength(0);
-
-  // And documents.remove itself still drives ragRemoveSource with the right
-  // source/sourceId tagging, which is what triggers deleteBySource for real.
-  await alice.mutation(api.documents.remove, { id: docId });
-  expect(ragRemoveSourceMock).toHaveBeenCalledWith(
-    expect.anything(),
-    { userId: aId, source: "document", sourceId: docId },
-  );
 });
 
 test("unauthenticated calls throw", async () => {
