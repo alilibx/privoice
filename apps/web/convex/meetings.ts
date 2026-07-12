@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -45,5 +45,30 @@ export const remove = mutation({
       throw new ConvexError("Not found"); // don't reveal others' rows
     }
     await ctx.db.delete(id);
+  },
+});
+
+/**
+ * Internal-only: case-insensitive substring search over a single user's
+ * meetings (title + notes). `userId` is always supplied by the caller (the
+ * searchMeetings agent tool, which resolves it from the authenticated
+ * caller's tool ctx — never from client/model input) — this query never
+ * derives userId itself, so it stays `by_user`-scoped no matter who calls it.
+ */
+export const searchByUser = internalQuery({
+  args: { userId: v.id("users"), query: v.string() },
+  handler: async (ctx, { userId, query }) => {
+    const needle = query.trim().toLowerCase();
+    const rows = await ctx.db
+      .query("meetings")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
+    if (needle.length === 0) return [];
+    return rows.filter(
+      (row) =>
+        row.title.toLowerCase().includes(needle) ||
+        (row.notes ?? "").toLowerCase().includes(needle),
+    );
   },
 });
