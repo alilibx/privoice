@@ -10,8 +10,8 @@ export type ToolPart = {
 };
 
 const LABELS: Record<string, string> = {
-  "tool-searchDocuments": "Searched your documents",
-  "tool-searchMeetings": "Searched your meetings",
+  "tool-searchKnowledge": "Searched your knowledge",
+  "tool-pinpoint": "Pinpointed exact matches",
 };
 
 function humanizeToolName(type: string) {

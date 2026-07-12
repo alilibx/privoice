@@ -50,7 +50,7 @@ const baseMessages = {
       role: "assistant",
       text: "Revenue grew 12%.",
       parts: [
-        { type: "tool-searchDocuments", state: "output-available" },
+        { type: "tool-searchKnowledge", state: "output-available" },
         { type: "text", text: "Revenue grew 12%." },
       ],
       status: "success",
@@ -99,7 +99,7 @@ test("shows a searching-documents affordance while a tool call is in progress", 
         key: "m1",
         role: "assistant",
         text: "",
-        parts: [{ type: "tool-searchDocuments", state: "input-available" }],
+        parts: [{ type: "tool-searchKnowledge", state: "input-available" }],
         status: "streaming",
         order: 1,
         stepOrder: 1,
@@ -110,5 +110,5 @@ test("shows a searching-documents affordance while a tool call is in progress", 
   } as any);
 
   renderChat();
-  expect(screen.getByText(/searched your documents/i)).toBeInTheDocument();
+  expect(screen.getByText(/searched your knowledge/i)).toBeInTheDocument();
 });
