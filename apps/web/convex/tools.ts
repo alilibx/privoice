@@ -38,13 +38,17 @@ export const searchKnowledge = createTool({
   }),
   execute: async (ctx, { query, source }): Promise<string> => {
     const userId = requireCallerUserId(ctx);
-    // NOTE: `internal.chat.getPins` (Task 9) will supply the caller's pinned
-    // sources here; until then, no pins are applied.
+    // The ids of documents/meetings attached to the message currently being
+    // generated (already validated + stored by sendMessage's setPins call —
+    // see chat.ts) so pinAndBoost can prioritize the attachment.
+    const pinnedSourceIds = await ctx.runQuery(internal.chat.getPins, {
+      userId: userId as Id<"users">,
+    });
     const result = await retrieve(ctx, {
       userId,
       query,
       source,
-      pinnedSourceIds: [],
+      pinnedSourceIds,
     });
     return `${result.pack}${SOURCES_MARKER}${JSON.stringify(result.sources)}`;
   },

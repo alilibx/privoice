@@ -87,6 +87,7 @@ test("typing a message and sending calls the send action with the thread id", as
     expect(sendMessage).toHaveBeenCalledWith({
       threadId: "thread1",
       text: "Summarize the doc",
+      pinnedSourceIds: [],
     });
   });
 });

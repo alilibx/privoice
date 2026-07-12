@@ -36,17 +36,26 @@ function withCtx<T extends object>(tool: T, ctx: Record<string, unknown>) {
   return { ...tool, ctx } as T & { ctx: unknown };
 }
 
-test("searchKnowledge scopes retrieve to ctx.userId, never a client-supplied id", async () => {
-  const tool = withCtx(searchKnowledge, { userId: "alice_id" });
+test("searchKnowledge scopes retrieve to ctx.userId, never a client-supplied id, and forwards the caller's pins from internal.chat.getPins", async () => {
+  const runQuery = vi.fn(async (_ref: unknown, _args: { userId: string }) => [
+    "pinned-doc-1",
+  ]);
+  const tool = withCtx(searchKnowledge, { userId: "alice_id", runQuery });
   const result = await tool.execute!(
     { query: "roadmap" },
     { toolCallId: "t1", messages: [] } as any,
   );
+  // getPins is queried scoped to the same authenticated caller, never a
+  // client-supplied id.
+  expect(runQuery).toHaveBeenCalledTimes(1);
+  const [, getPinsArgs] = runQuery.mock.calls[0];
+  expect(getPinsArgs).toEqual({ userId: "alice_id" });
+
   expect(retrieveMock).toHaveBeenCalledWith(expect.anything(), {
     userId: "alice_id",
     query: "roadmap",
     source: undefined,
-    pinnedSourceIds: [],
+    pinnedSourceIds: ["pinned-doc-1"],
   });
   expect(result).toContain("pack-for:alice_id:roadmap");
   expect(result).toContain("<<<SOURCES>>>");
@@ -54,11 +63,13 @@ test("searchKnowledge scopes retrieve to ctx.userId, never a client-supplied id"
 });
 
 test("searchKnowledge fails closed when ctx carries no userId", async () => {
-  const tool = withCtx(searchKnowledge, {});
+  const runQuery = vi.fn();
+  const tool = withCtx(searchKnowledge, { runQuery });
   await expect(
     tool.execute!({ query: "x" }, { toolCallId: "t2", messages: [] } as any),
   ).rejects.toThrow();
   expect(retrieveMock).not.toHaveBeenCalled();
+  expect(runQuery).not.toHaveBeenCalled();
 });
 
 test("pinpoint scopes its runQuery to ctx.userId", async () => {
