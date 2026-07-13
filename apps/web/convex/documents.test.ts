@@ -210,3 +210,24 @@ test("listForUser returns only the caller's documents", async () => {
   expect(list).toHaveLength(1);
   expect(list[0].filename).toBe("a.pdf");
 });
+
+test("listForUser returns a sourceId handle and lineCount per document", async () => {
+  const t = convexTest(schema, modules);
+  const { userId } = await asNewUser(t, "lines@x.com");
+  const docId = await t.run(async (ctx) => {
+    const storageId = await ctx.storage.store(new Blob([new Uint8Array([1])]));
+    return ctx.db.insert("documents", {
+      userId, storageId, filename: "a.txt", mimeType: "text/plain",
+      kind: "txt", sizeBytes: 2, status: "ready", chunkCount: 2, createdAt: 1,
+    });
+  });
+  await t.mutation(internal.knowledge.insertChunks, {
+    userId, entryId: "e1", source: "document", sourceId: docId,
+    title: "a.txt", chunks: ["line one", "line two"],
+  });
+
+  const list = await t.query(internal.documents.listForUser, { userId });
+  const row = list.find((d) => d.sourceId === docId);
+  expect(row).toBeTruthy();
+  expect(row!.lineCount).toBe(2);
+});

@@ -77,8 +77,8 @@ export const searchQuery = internalQuery({
 
 /**
  * Concatenated chunk text for one user-owned source, in chunk order — used
- * by tools.ts's `pinpoint` to regex-search within a single known source
- * (e.g. one document or meeting) rather than across the whole corpus.
+ * by tools.ts's `readDocument` (positional read) and scoped `grep` to work
+ * within a single known source (e.g. one document or meeting).
  * Scoped via `by_user_sourceId` on (userId, sourceId), so a caller can never
  * read another user's chunks even if it somehow guessed a valid sourceId.
  * Returns "" if the user has no chunks for that sourceId.
@@ -96,3 +96,52 @@ export const linesFor = internalQuery({
     return rows.map((r) => r.chunkText).join("\n");
   },
 });
+
+// Group all of a user's knowledgeChunks by sourceId and reconstruct each
+// source's full text (chunks sorted by chunkIndex, joined with "\n") — the
+// same reconstruction linesFor does for one source, done for the whole
+// corpus in a single by_user scan. Backs corpus-mode grep and line counts.
+export async function reconstructedSourcesForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+): Promise<Array<{ sourceId: string; title: string; source: string; text: string }>> {
+  const rows = await ctx.db
+    .query("knowledgeChunks")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  const groups = new Map<
+    string,
+    { title: string; source: string; chunks: Array<{ i: number; t: string }> }
+  >();
+  for (const r of rows) {
+    let g = groups.get(r.sourceId);
+    if (!g) {
+      g = { title: r.title, source: r.source, chunks: [] };
+      groups.set(r.sourceId, g);
+    }
+    g.chunks.push({ i: r.chunkIndex, t: r.chunkText });
+  }
+  return [...groups.entries()].map(([sourceId, g]) => ({
+    sourceId,
+    title: g.title,
+    source: g.source,
+    text: g.chunks.sort((a, b) => a.i - b.i).map((c) => c.t).join("\n"),
+  }));
+}
+
+export const corpusForUser = internalQuery({
+  args: { userId: v.id("users") },
+  handler: (ctx, { userId }) => reconstructedSourcesForUser(ctx, userId),
+});
+
+export async function lineCountsForUser(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+): Promise<Record<string, number>> {
+  const sources = await reconstructedSourcesForUser(ctx, userId);
+  const counts: Record<string, number> = {};
+  for (const s of sources) {
+    counts[s.sourceId] = s.text.length === 0 ? 0 : s.text.split("\n").length;
+  }
+  return counts;
+}

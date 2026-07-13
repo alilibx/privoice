@@ -67,10 +67,12 @@ export const listDocuments = createTool({
   execute: async (ctx): Promise<string> => {
     const userId = requireCallerUserId(ctx);
     const docs: Array<{
+      sourceId: string;
       filename: string;
       kind: string;
       status: string;
       sizeBytes: number;
+      lineCount: number;
       createdAt: number;
     }> = await ctx.runQuery(internal.documents.listForUser, {
       userId: userId as Id<"users">,
@@ -78,9 +80,45 @@ export const listDocuments = createTool({
     if (docs.length === 0) return "The user has no uploaded documents.";
     const lines = docs.map(
       (d) =>
-        `- ${d.filename} (${d.kind}, ${formatBytes(d.sizeBytes)}${d.status !== "ready" ? `, ${d.status}` : ""})`,
+        `- ${d.filename} (${d.kind}, ${formatBytes(d.sizeBytes)}, ${d.lineCount} lines${d.status !== "ready" ? `, ${d.status}` : ""}) [id: ${d.sourceId}]`,
     );
     return `The user has ${docs.length} document${docs.length === 1 ? "" : "s"}:\n${lines.join("\n")}`;
+  },
+});
+
+const READ_MAX_LINES = 200;
+const READ_MAX_CHARS = 8192;
+
+export const readDocument = createTool({
+  description:
+    "Read a specific range of lines from ONE known document or meeting by its sourceId, returned with line numbers. Read positionally — e.g. the first line (startLine 1, maxLines 1), an intro, or to expand around a grep match. Not for searching: use grep or searchKnowledge to find things first.",
+  inputSchema: z.object({
+    sourceId: z.string().describe("The sourceId of the document or meeting to read"),
+    startLine: z.number().optional().describe("1-indexed line to start at (default 1)"),
+    maxLines: z.number().optional().describe("How many lines to return (default 50, max 200)"),
+  }),
+  execute: async (ctx, { sourceId, startLine, maxLines }): Promise<string> => {
+    const userId = requireCallerUserId(ctx);
+    const text: string = await ctx.runQuery(internal.knowledge.linesFor, {
+      userId: userId as Id<"users">,
+      sourceId,
+    });
+    if (!text) return "No content found for that document.";
+    const lines = text.split("\n");
+    const start = Math.max(1, Math.floor(startLine ?? 1));
+    const count = Math.min(READ_MAX_LINES, Math.max(1, Math.floor(maxLines ?? 50)));
+    if (start > lines.length) return `Document has only ${lines.length} lines.`;
+    const end = Math.min(lines.length, start - 1 + count);
+    const width = String(end).length;
+    const body = lines
+      .slice(start - 1, end)
+      .map((line, i) => `${String(start + i).padStart(width)}  ${line}`)
+      .join("\n");
+    let out = `lines ${start}–${end} of ${lines.length}:\n${body}`;
+    if (out.length > READ_MAX_CHARS) {
+      out = out.slice(0, READ_MAX_CHARS) + "\n… (truncated)";
+    }
+    return out;
   },
 });
 
@@ -91,24 +129,55 @@ const MAX_WINDOWS = 40;
 // checked before `new RegExp` so an expensive-to-compile-or-run pattern
 // never reaches the regex engine.
 const MAX_PATTERN_LENGTH = 200;
+const GREP_MAX_SOURCES = 200;
+const GREP_MAX_CHARS = 8192;
 
-export const pinpoint = createTool({
-  description:
-    "Find exact values (dates, amounts, clause numbers, names) within a single known source by regex pattern, returning the matching lines with surrounding context.",
-  inputSchema: z.object({
-    sourceId: z.string().describe("The sourceId of the document or meeting to search within"),
-    pattern: z.string().describe("A regular expression to search for, e.g. an amount or date pattern"),
-  }),
-  execute: async (ctx, { sourceId, pattern }): Promise<string> => {
-    const userId = requireCallerUserId(ctx);
-    if (pattern.length > MAX_PATTERN_LENGTH) {
-      return "Search pattern too long.";
+// Scan one reconstructed source's text for regex matches, returning numbered,
+// context-padded, merged blocks each headed by `title:firstLineNo`. Empty
+// array when nothing matches. Shared by grep's scoped and corpus modes.
+function grepSource(title: string, text: string, regex: RegExp): string[] {
+  if (!text) return [];
+  const lines = text.split("\n");
+  const windows: Array<[number, number]> = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (regex.test(lines[i])) {
+      windows.push([Math.max(0, i - CONTEXT_LINES), Math.min(lines.length - 1, i + CONTEXT_LINES)]);
     }
-    const text: string = await ctx.runQuery(internal.knowledge.linesFor, {
-      userId: userId as Id<"users">,
-      sourceId,
-    });
+  }
+  if (windows.length === 0) return [];
 
+  // Merge overlapping/adjacent windows so shared context isn't duplicated.
+  windows.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of windows) {
+    const last = merged[merged.length - 1];
+    if (last && start <= last[1] + 1) {
+      last[1] = Math.max(last[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+
+  const width = String(lines.length).length;
+  return merged.map(([start, end]) => {
+    const numbered = lines
+      .slice(start, end + 1)
+      .map((line, k) => `${String(start + 1 + k).padStart(width)}  ${line}`)
+      .join("\n");
+    return `${title}:${start + 1}\n${numbered}`;
+  });
+}
+
+export const grep = createTool({
+  description:
+    "Search the user's documents and meetings for an exact value or phrase by regular expression. Omit sourceId to search across ALL sources; pass a sourceId to search within one. Returns matching lines with line numbers under a `title:line` header — hand a match's line to readDocument to read the surrounding section.",
+  inputSchema: z.object({
+    pattern: z.string().describe("A regular expression, e.g. an amount, date, clause number, or phrase"),
+    sourceId: z.string().optional().describe("Optional: restrict the search to a single document or meeting by its sourceId"),
+  }),
+  execute: async (ctx, { pattern, sourceId }): Promise<string> => {
+    const userId = requireCallerUserId(ctx);
+    if (pattern.length > MAX_PATTERN_LENGTH) return "Search pattern too long.";
     let regex: RegExp;
     try {
       regex = new RegExp(pattern, "i");
@@ -116,31 +185,39 @@ export const pinpoint = createTool({
       return "Invalid search pattern.";
     }
 
-    if (!text) return "No matches found.";
-    const lines = text.split("\n");
-
-    const windows: Array<[number, number]> = [];
-    for (let i = 0; i < lines.length; i++) {
-      if (regex.test(lines[i])) {
-        windows.push([Math.max(0, i - CONTEXT_LINES), Math.min(lines.length - 1, i + CONTEXT_LINES)]);
-      }
-    }
-    if (windows.length === 0) return "No matches found.";
-
-    // Merge overlapping/adjacent windows so shared context isn't duplicated.
-    windows.sort((a, b) => a[0] - b[0]);
-    const merged: Array<[number, number]> = [];
-    for (const [start, end] of windows) {
-      const last = merged[merged.length - 1];
-      if (last && start <= last[1] + 1) {
-        last[1] = Math.max(last[1], end);
-      } else {
-        merged.push([start, end]);
-      }
+    // Assemble the sources to scan: one (scoped) or all (corpus).
+    let sources: Array<{ sourceId: string; title: string; text: string }>;
+    let sourcesCapped = false;
+    if (sourceId) {
+      const text: string = await ctx.runQuery(internal.knowledge.linesFor, {
+        userId: userId as Id<"users">,
+        sourceId,
+      });
+      // linesFor returns only text; label the scoped hit by its sourceId
+      // (the model already knows which doc it asked for).
+      sources = [{ sourceId, title: sourceId, text }];
+    } else {
+      const all: Array<{ sourceId: string; title: string; source: string; text: string }> =
+        await ctx.runQuery(internal.knowledge.corpusForUser, {
+          userId: userId as Id<"users">,
+        });
+      sourcesCapped = all.length > GREP_MAX_SOURCES;
+      sources = all.slice(0, GREP_MAX_SOURCES);
     }
 
-    const capped = merged.slice(0, MAX_WINDOWS);
-    const blocks = capped.map(([start, end]) => lines.slice(start, end + 1).join("\n"));
-    return blocks.join("\n---\n");
+    const blocks: string[] = [];
+    for (const src of sources) {
+      if (blocks.length >= MAX_WINDOWS) break;
+      for (const block of grepSource(src.title, src.text, regex)) {
+        blocks.push(block);
+        if (blocks.length >= MAX_WINDOWS) break;
+      }
+    }
+
+    if (blocks.length === 0) return "No matches found.";
+    let out = blocks.join("\n---\n");
+    if (out.length > GREP_MAX_CHARS) out = out.slice(0, GREP_MAX_CHARS) + "\n… (truncated)";
+    if (sourcesCapped) out += `\n\n(Searched the first ${GREP_MAX_SOURCES} sources; more exist.)`;
+    return out;
   },
 });

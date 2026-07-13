@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
 import { ragRemoveSource } from "./rag";
+import { lineCountsForUser } from "./knowledge";
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const KIND_BY_EXT: Record<string, string> = {
@@ -69,11 +70,14 @@ export const listForUser = internalQuery({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
+    const lineCounts = await lineCountsForUser(ctx, userId);
     return docs.map((d) => ({
+      sourceId: d._id,
       filename: d.filename,
       kind: d.kind,
       status: d.status,
       sizeBytes: d.sizeBytes,
+      lineCount: lineCounts[d._id] ?? 0,
       createdAt: d.createdAt,
     }));
   },
