@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:background_downloader/background_downloader.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:privoice_ai/privoice_ai.dart';
 import 'package:privoice_core/privoice_core.dart';
 
 import 'ai_model_paths.dart';
 import 'ai_service.dart';
+import 'dev_sentinels.dart';
 import 'screens/app_bootstrap.dart';
 import 'settings.dart';
 import 'theme.dart';
@@ -44,7 +44,7 @@ Future<void> main() async {
 /// user's device (no sentinel there).
 Future<void> _maybeSeed(MeetingRepository repo) async {
   try {
-    final ext = await getExternalStorageDirectory();
+    final ext = await devSentinelDir();
     if (ext == null) return;
     if (!File(p.join(ext.path, '.seed')).existsSync()) return;
     if ((await repo.all()).isNotEmpty) return;
@@ -86,7 +86,7 @@ Future<void> _maybeSeed(MeetingRepository repo) async {
 /// output (read via logcat). No sentinel → normal app.
 Future<void> _maybeAiSelfTest() async {
   try {
-    final ext = await getExternalStorageDirectory();
+    final ext = await devSentinelDir();
     if (ext == null) return;
     if (!File(p.join(ext.path, '.ai_selftest')).existsSync()) return;
     final model = await AiModelLocator.llama();
