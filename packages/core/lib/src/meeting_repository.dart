@@ -25,7 +25,7 @@ class SqfliteMeetingRepository implements MeetingRepository {
 
   final Database _db;
 
-  static const schemaVersion = 3;
+  static const schemaVersion = 4;
 
   static Future<void> onCreate(Database db, int version) async {
     await db.execute('''
@@ -38,7 +38,8 @@ class SqfliteMeetingRepository implements MeetingRepository {
         transcript TEXT,
         minutes TEXT,
         action_items TEXT,
-        status TEXT NOT NULL
+        status TEXT NOT NULL,
+        minutes_edited_at INTEGER
       )
     ''');
   }
@@ -69,6 +70,10 @@ class SqfliteMeetingRepository implements MeetingRepository {
           whereArgs: [row['id']],
         );
       }
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+          'ALTER TABLE meetings ADD COLUMN minutes_edited_at INTEGER');
     }
   }
 
