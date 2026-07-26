@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/ai_service.dart';
 import 'package:mobile/model_manager.dart';
@@ -366,6 +367,33 @@ void main() {
 
     await tester.tap(find.text('Regenerate'));
     await tester.pumpAndSettle();
+
+    // A clear-before-check ordering bug in _regenerate would mutate
+    // in-memory `_meeting.minutes` to '' even though _generateOverview's own
+    // guard then blocks generation — but *without ever calling setState*, so
+    // nothing visibly changes right after the tap: the screen still shows
+    // whatever was last built. That would let a weaker assertion here pass
+    // by accident even with the bug present (confirmed empirically: this
+    // exact tap+pumpAndSettle sequence alone does not distinguish the two
+    // orderings). Force one harmless rebuild the way any other real user
+    // interaction naturally would — renaming the meeting to its own current
+    // title, which is otherwise a no-op — so a corrupted in-memory `_meeting`
+    // actually surfaces in the rendered tree, the same way it would the next
+    // time this screen rebuilds for any unrelated reason.
+    await tester.tap(find.text('Kept Name'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    // The regression is visible in the UI, not just the database: existing
+    // minutes must still be rendered, not replaced by the "No summary yet"
+    // empty state.
+    expect(find.byType(MarkdownBody), findsOneWidget,
+        reason: 'existing minutes must still be rendered after a blocked '
+            'regenerate, not replaced by the empty state');
+    expect(
+        find.textContaining('Minutes generated before the guard existed.'),
+        findsWidgets);
 
     final saved = await repo.byId(1);
     expect(saved?.minutes,
