@@ -103,4 +103,24 @@ void main() {
     // Carol is index 0 in stored order.
     expect(log, contains('delete:0'));
   });
+
+  testWidgets('dragging an item reports a reorder', (tester) async {
+    items = const [
+      ActionItem(text: 'first'),
+      ActionItem(text: 'second'),
+      ActionItem(text: 'third'),
+    ];
+    await pump(tester);
+
+    // Drag 'first' down past 'second'.
+    final handle = find.byIcon(Icons.drag_handle_rounded).first;
+    final gesture = await tester.startGesture(tester.getCenter(handle));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.moveBy(const Offset(0, 60));
+    await tester.pump(const Duration(milliseconds: 200));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(log.where((e) => e.startsWith('reorder:')), isNotEmpty);
+  });
 }

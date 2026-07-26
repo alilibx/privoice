@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/ai_service.dart';
 import 'package:mobile/model_manager.dart';
 import 'package:mobile/screens/transcript_screen.dart';
+import 'package:mobile/widgets/action_item_list.dart';
 import 'package:privoice_core/privoice_core.dart';
 import 'package:privoice_models/privoice_models.dart';
 
@@ -271,6 +272,28 @@ void main() {
     await tester.pumpAndSettle();
     expect((await repo.byId(1))?.actionItems.single.text,
         'Dave: book the room');
+  });
+
+  testWidgets('reordering action items persists the new order',
+      (tester) async {
+    final m = _meeting(
+      minutes: '### Summary\nCached.',
+      items: const [
+        ActionItem(text: 'first'),
+        ActionItem(text: 'second'),
+      ],
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+    await tester.pumpAndSettle();
+
+    final list = tester.widget<ActionItemList>(find.byType(ActionItemList));
+    await list.onReorder(0, 2); // ReorderableListView's post-removal index
+    await tester.pumpAndSettle();
+
+    final saved = await repo.byId(1);
+    expect(saved?.actionItems.map((i) => i.text).toList(),
+        ['second', 'first']);
   });
 
   testWidgets('tapping the title renames the meeting', (tester) async {

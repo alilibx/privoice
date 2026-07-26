@@ -375,10 +375,10 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     await widget.repository.update(_meeting);
   }
 
-  /// Not wired to any gesture yet — `ActionItemList` accepts [onReorder] now
-  /// so Task 8 only has to add the drag affordance on top of this. Follows
-  /// `ReorderableListView`'s own index convention: when the item moves later
-  /// in the list, [newIndex] already accounts for its own removal.
+  /// Wired to `ActionItemList`'s drag handle via [ActionItemList.onReorder].
+  /// Follows `ReorderableListView`'s own index convention: [newIndex] is
+  /// reported as if the dragged item were still present, so an item moving
+  /// later in the list needs the `-1` fix-up below before insertion.
   Future<void> _reorderItems(int oldIndex, int newIndex) async {
     final items = List<ActionItem>.of(_meeting.actionItems);
     final item = items.removeAt(oldIndex);
