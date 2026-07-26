@@ -12,6 +12,15 @@ import '../fakes/fake_ai_engine.dart';
 import '../fakes/fake_meeting_repository.dart';
 import '../fakes/fake_model_downloader.dart';
 
+/// A transcript comfortably over SummarizeGate.minWords (30), so the tests
+/// that assert generation actually reach the model. Keep it >= 30 words.
+const _richTranscript =
+    'Alice: I think we should ship the beta on Friday if the login screen is '
+    'ready. Bob: I can finish the login screen by Thursday evening. Alice: '
+    'Carol, could you write the release notes for it? Carol: Yes, I will have '
+    'them ready on Friday morning. Bob: We also agreed to postpone the '
+    'analytics work to the next sprint.';
+
 Meeting _meeting({String? minutes, List<ActionItem> items = const []}) => Meeting(
       id: 1,
       // Default-shaped title (record_screen._defaultTitle()) so the
@@ -20,7 +29,7 @@ Meeting _meeting({String? minutes, List<ActionItem> items = const []}) => Meetin
       createdAt: DateTime(2026, 7, 10),
       audioPath: '',
       durationMs: 60000,
-      transcript: 'Alice: ship the beta Friday.',
+      transcript: _richTranscript,
       minutes: minutes,
       actionItems: items,
     );
@@ -162,7 +171,7 @@ void main() {
       createdAt: DateTime(2026, 7, 10),
       audioPath: '',
       durationMs: 60000,
-      transcript: 'Alice: ship the beta Friday.',
+      transcript: _richTranscript,
       minutes: null,
       actionItems: const [],
     );
@@ -301,6 +310,66 @@ void main() {
     engine.capturedOnProgress!(0.5);
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a thin transcript never reaches the model', (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Meeting 10/7 09:00',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+    );
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    // The regression: four words used to produce a full fabricated meeting.
+    expect(engine.summarizeCalls, 0);
+    expect((await repo.byId(1))?.minutes, anyOf(isNull, isEmpty));
+  });
+
+  testWidgets('a sparse long recording never reaches the model',
+      (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Meeting 10/7 09:00',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 18 * 60 * 1000,
+      transcript: List.generate(40, (i) => 'word$i').join(' '),
+    );
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    expect(engine.summarizeCalls, 0);
+  });
+
+  testWidgets('a blocked regenerate preserves existing minutes',
+      (tester) async {
+    // The data-loss path: _regenerate used to clear minutes *before* checking
+    // whether it could generate anything to replace them with.
+    final m = Meeting(
+      id: 1,
+      title: 'Kept Name',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+      minutes: '### Summary\nMinutes generated before the guard existed.',
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo, engine: _CountingAiEngine());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Regenerate'));
+    await tester.pumpAndSettle();
+
+    final saved = await repo.byId(1);
+    expect(saved?.minutes,
+        '### Summary\nMinutes generated before the guard existed.');
   });
 }
 

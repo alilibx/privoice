@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:privoice_ai/privoice_ai.dart';
 import 'package:privoice_core/privoice_core.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -64,8 +65,22 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     super.dispose();
   }
 
+  /// One-shot "Summarize anyway" override. Deliberately not persisted: it
+  /// applies to this visit only. Not mutated yet — a future task wires up
+  /// the UI control that flips it — so it cannot be `final`.
+  // ignore: prefer_final_fields
+  bool _overrideGate = false;
+
   String get _transcript => (_meeting.transcript ?? '').trim();
   bool get _hasMinutes => (_meeting.minutes ?? '').isNotEmpty;
+
+  GateVerdict get _verdict => SummarizeGate.assess(
+        transcript: _transcript,
+        durationMs: _meeting.durationMs,
+      );
+
+  /// Whether generation is allowed to run at all right now.
+  bool get _mayGenerate => _overrideGate || _verdict.sufficient;
 
   void _ask() {
     final ctx = [
@@ -194,6 +209,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
   Future<void> _generateOverview() async {
     if (_busy || _transcript.isEmpty) return;
+    if (!_mayGenerate) return;
     setState(() {
       _busy = true;
       _genFailed = false;
@@ -258,6 +274,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     if (_autoStarted) return;
     if (_hasMinutes || _meeting.actionItems.isNotEmpty) return;
     if (_transcript.isEmpty || !_manager.llmReady) return;
+    if (!_mayGenerate) return;
     _autoStarted = true;
     WidgetsBinding.instance.addPostFrameCallback((_) => _generateOverview());
   }
@@ -352,7 +369,13 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   }
 
   Future<void> _regenerate() async {
-    _meeting = _meeting.copyWith(minutes: '');
+    // Check the gate *before* clearing: a blocked regenerate must leave
+    // existing minutes intact rather than wiping them and putting nothing back.
+    if (!_mayGenerate) {
+      setState(() {}); // Surface the blocked state; keep the minutes.
+      return;
+    }
+    _meeting = _meeting.copyWith(minutes: '', resetMinutesEdited: true);
     await _generateOverview();
   }
 
