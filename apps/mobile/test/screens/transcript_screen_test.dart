@@ -242,6 +242,37 @@ void main() {
     expect(shipIt.done, isTrue);
   });
 
+  testWidgets('adding, editing and deleting action items all persist',
+      (tester) async {
+    final m = _meeting(
+      minutes: '### Summary\nCached.',
+      items: const [ActionItem(text: 'Bob: finish login')],
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Bob: finish login'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Bob: finish login by Thu');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect((await repo.byId(1))?.actionItems.single.text,
+        'Bob: finish login by Thu');
+
+    await tester.tap(find.text('+ Add item'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Dave: book the room');
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    expect((await repo.byId(1))?.actionItems, hasLength(2));
+
+    await tester.tap(find.byTooltip('Delete item').first);
+    await tester.pumpAndSettle();
+    expect((await repo.byId(1))?.actionItems.single.text,
+        'Dave: book the room');
+  });
+
   testWidgets('tapping the title renames the meeting', (tester) async {
     final m = _meeting(minutes: '### Summary\nx');
     final repo = FakeMeetingRepository([m]);

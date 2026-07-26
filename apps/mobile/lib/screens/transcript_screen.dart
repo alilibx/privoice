@@ -299,6 +299,10 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       onGenerate: _generateOverview,
       onRegenerate: _regenerate,
       onToggleItem: _toggleItem,
+      onEditItemText: _editItemText,
+      onAddItem: _addItem,
+      onDeleteItem: _deleteItem,
+      onReorderItems: _reorderItems,
       onSummarizeAnyway: _summarizeAnyway,
       onEditMinutes: _editMinutes,
     );
@@ -347,6 +351,39 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   Future<void> _toggleItem(int index, bool done) async {
     final items = List<ActionItem>.of(_meeting.actionItems);
     items[index] = items[index].copyWith(done: done);
+    setState(() => _meeting = _meeting.copyWith(actionItems: items));
+    await widget.repository.update(_meeting);
+  }
+
+  Future<void> _editItemText(int index, String text) async {
+    final items = List<ActionItem>.of(_meeting.actionItems);
+    items[index] = items[index].copyWith(text: text);
+    setState(() => _meeting = _meeting.copyWith(actionItems: items));
+    await widget.repository.update(_meeting);
+  }
+
+  Future<void> _addItem(String text) async {
+    final items = List<ActionItem>.of(_meeting.actionItems)
+      ..add(ActionItem(text: text));
+    setState(() => _meeting = _meeting.copyWith(actionItems: items));
+    await widget.repository.update(_meeting);
+  }
+
+  Future<void> _deleteItem(int index) async {
+    final items = List<ActionItem>.of(_meeting.actionItems)..removeAt(index);
+    setState(() => _meeting = _meeting.copyWith(actionItems: items));
+    await widget.repository.update(_meeting);
+  }
+
+  /// Not wired to any gesture yet — `ActionItemList` accepts [onReorder] now
+  /// so Task 8 only has to add the drag affordance on top of this. Follows
+  /// `ReorderableListView`'s own index convention: when the item moves later
+  /// in the list, [newIndex] already accounts for its own removal.
+  Future<void> _reorderItems(int oldIndex, int newIndex) async {
+    final items = List<ActionItem>.of(_meeting.actionItems);
+    final item = items.removeAt(oldIndex);
+    final insertAt = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    items.insert(insertAt, item);
     setState(() => _meeting = _meeting.copyWith(actionItems: items));
     await widget.repository.update(_meeting);
   }

@@ -3,6 +3,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:privoice_ai/privoice_ai.dart';
 import 'package:privoice_core/privoice_core.dart';
 
+import '../widgets/action_item_list.dart';
+
 /// Human-readable duration as m:ss (e.g. "0:13").
 String formatMmss(int durationMs) {
   final total = (durationMs / 1000).round();
@@ -40,6 +42,10 @@ class OverviewTab extends StatelessWidget {
     required this.onGenerate,
     required this.onRegenerate,
     required this.onToggleItem,
+    required this.onEditItemText,
+    required this.onAddItem,
+    required this.onDeleteItem,
+    required this.onReorderItems,
     required this.onSummarizeAnyway,
     required this.onEditMinutes,
   });
@@ -56,6 +62,10 @@ class OverviewTab extends StatelessWidget {
   final Future<void> Function() onGenerate;
   final Future<void> Function() onRegenerate;
   final Future<void> Function(int index, bool done) onToggleItem;
+  final Future<void> Function(int index, String text) onEditItemText;
+  final Future<void> Function(String text) onAddItem;
+  final Future<void> Function(int index) onDeleteItem;
+  final Future<void> Function(int oldIndex, int newIndex) onReorderItems;
   final VoidCallback onSummarizeAnyway;
   final VoidCallback onEditMinutes;
 
@@ -148,7 +158,7 @@ class OverviewTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
-        if (hasItems) ...[
+        if (hasItems || _hasMinutes) ...[
           Row(children: [
             Icon(Icons.check_circle_outline, size: 18, color: scheme.primary),
             const SizedBox(width: 8),
@@ -156,7 +166,14 @@ class OverviewTab extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall),
           ]),
           const SizedBox(height: 12),
-          ActionList(items: meeting.actionItems, onToggle: onToggleItem),
+          ActionItemList(
+            items: meeting.actionItems,
+            onToggle: onToggleItem,
+            onEditText: onEditItemText,
+            onAdd: onAddItem,
+            onDelete: onDeleteItem,
+            onReorder: onReorderItems,
+          ),
           const SizedBox(height: 24),
         ],
         if (_hasMinutes)
@@ -187,63 +204,6 @@ class OverviewTab extends StatelessWidget {
             ),
           ),
         ],
-      ],
-    );
-  }
-}
-
-/// Checkable action-item list. Completed items sink to the bottom and strike
-/// through; the initial reveal is staggered.
-class ActionList extends StatelessWidget {
-  const ActionList({super.key, required this.items, required this.onToggle});
-  final List<ActionItem> items;
-  final Future<void> Function(int index, bool done) onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // Preserve original indices (onToggle needs them) while showing
-    // undone-first, done-last.
-    final order = List<int>.generate(items.length, (i) => i)
-      ..sort((a, b) {
-        if (items[a].done == items[b].done) return a.compareTo(b);
-        return items[a].done ? 1 : -1;
-      });
-
-    return Column(
-      children: [
-        for (var pos = 0; pos < order.length; pos++)
-          AnimatedIn(
-            delayMs: 40 * pos,
-            key: ValueKey('item-${order[pos]}'),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => onToggle(order[pos], !items[order[pos]].done),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(children: [
-                  Checkbox(
-                    value: items[order[pos]].done,
-                    onChanged: (v) => onToggle(order[pos], v ?? false),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      items[order[pos]].text,
-                      style: TextStyle(
-                        color: items[order[pos]].done
-                            ? scheme.onSurfaceVariant
-                            : scheme.onSurface,
-                        decoration: items[order[pos]].done
-                            ? TextDecoration.lineThrough
-                            : null,
-                      ),
-                    ),
-                  ),
-                ]),
-              ),
-            ),
-          ),
       ],
     );
   }
