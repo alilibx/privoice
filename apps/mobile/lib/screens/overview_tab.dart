@@ -41,6 +41,7 @@ class OverviewTab extends StatelessWidget {
     required this.onRegenerate,
     required this.onToggleItem,
     required this.onSummarizeAnyway,
+    required this.onEditMinutes,
   });
 
   final Meeting meeting;
@@ -56,6 +57,7 @@ class OverviewTab extends StatelessWidget {
   final Future<void> Function() onRegenerate;
   final Future<void> Function(int index, bool done) onToggleItem;
   final VoidCallback onSummarizeAnyway;
+  final VoidCallback onEditMinutes;
 
   bool get _hasMinutes => (meeting.minutes ?? '').isNotEmpty;
 
@@ -168,10 +170,20 @@ class OverviewTab extends StatelessWidget {
         if (_hasMinutes) ...[
           const SizedBox(height: 20),
           Center(
-            child: TextButton.icon(
-              onPressed: onRegenerate,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Regenerate'),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              children: [
+                TextButton.icon(
+                  onPressed: onEditMinutes,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Edit'),
+                ),
+                TextButton.icon(
+                  onPressed: onRegenerate,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Regenerate'),
+                ),
+              ],
             ),
           ),
         ],

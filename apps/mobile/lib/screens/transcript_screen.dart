@@ -8,6 +8,7 @@ import '../ai_service.dart';
 import '../meeting_share.dart';
 import '../model_manager.dart';
 import '../widgets/ask_sheet.dart';
+import 'minutes_editor_screen.dart';
 import 'overview_tab.dart';
 
 /// Matches the placeholder title from record_screen._defaultTitle()
@@ -299,7 +300,25 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       onRegenerate: _regenerate,
       onToggleItem: _toggleItem,
       onSummarizeAnyway: _summarizeAnyway,
+      onEditMinutes: _editMinutes,
     );
+  }
+
+  Future<void> _editMinutes() async {
+    final edited = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) =>
+            MinutesEditorScreen(initialText: _meeting.minutes ?? ''),
+      ),
+    );
+    if (edited == null || !mounted) return;
+    setState(() {
+      _meeting = _meeting.copyWith(
+        minutes: edited,
+        minutesEditedAt: DateTime.now(),
+      );
+    });
+    await widget.repository.update(_meeting);
   }
 
   Future<void> _regenerate() async {

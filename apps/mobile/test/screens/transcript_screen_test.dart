@@ -556,6 +556,45 @@ void main() {
     expect(find.textContaining('Fake minutes for tests.'), findsWidgets);
   });
 
+  testWidgets('editing minutes persists the text and stamps minutesEditedAt',
+      (tester) async {
+    final m = _meeting(minutes: '### Summary\nOriginal.');
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '### Summary\nMine.');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    final saved = await repo.byId(1);
+    expect(saved?.minutes, '### Summary\nMine.');
+    expect(saved?.minutesEditedAt, isNotNull);
+  });
+
+  testWidgets('editing minutes does not touch the action-item list',
+      (tester) async {
+    final m = _meeting(
+      minutes: '### Summary\nOriginal.',
+      items: const [ActionItem(text: 'Ship it', done: true)],
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '### Summary\nMine.');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    final saved = await repo.byId(1);
+    expect(saved?.actionItems.single.text, 'Ship it');
+    expect(saved?.actionItems.single.done, isTrue);
+  });
+
   testWidgets(
       'Regenerate on a sufficient transcript shows no blocked SnackBar',
       (tester) async {
