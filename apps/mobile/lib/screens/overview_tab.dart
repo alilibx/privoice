@@ -3,6 +3,27 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:privoice_ai/privoice_ai.dart';
 import 'package:privoice_core/privoice_core.dart';
 
+/// Human-readable duration as m:ss (e.g. "0:13").
+String formatMmss(int durationMs) {
+  final total = (durationMs / 1000).round();
+  final m = total ~/ 60;
+  final s = total % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
+}
+
+/// Explains why [SummarizeGate] blocked generation, in the exact wording
+/// shown to the user. This is the single source of truth for that copy:
+/// [OverviewTab]'s blocked empty-state and transcript_screen.dart's blocked
+/// Regenerate SnackBar both call this so the two paths can never drift apart.
+String gateBlockedReason(GateVerdict v, int durationMs) {
+  if (v.outcome == GateOutcome.tooSparse) {
+    final mins = (durationMs / 60000).round();
+    return '$mins minutes of audio but only ${v.wordCount} words '
+        '— mostly silence.';
+  }
+  return 'Only ${v.wordCount} words in ${formatMmss(durationMs)}.';
+}
+
 /// Overview tab: AI-generated minutes + action items for a meeting.
 class OverviewTab extends StatelessWidget {
   const OverviewTab({
@@ -38,22 +59,6 @@ class OverviewTab extends StatelessWidget {
 
   bool get _hasMinutes => (meeting.minutes ?? '').isNotEmpty;
 
-  static String _mmss(int durationMs) {
-    final total = (durationMs / 1000).round();
-    final m = total ~/ 60;
-    final s = total % 60;
-    return '$m:${s.toString().padLeft(2, '0')}';
-  }
-
-  String _reason(GateVerdict v, int durationMs) {
-    if (v.outcome == GateOutcome.tooSparse) {
-      final mins = (durationMs / 60000).round();
-      return '$mins minutes of audio but only ${v.wordCount} words '
-          '— mostly silence.';
-    }
-    return 'Only ${v.wordCount} words in ${_mmss(durationMs)}.';
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -78,7 +83,7 @@ class OverviewTab extends StatelessWidget {
           const SizedBox(height: 16),
           Text('Not enough speech to summarize', style: textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text(_reason(verdict, meeting.durationMs),
+          Text(gateBlockedReason(verdict, meeting.durationMs),
               style: TextStyle(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           Center(

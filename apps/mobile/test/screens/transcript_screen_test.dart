@@ -479,6 +479,104 @@ void main() {
     expect(find.textContaining('Pre-guard minutes.'), findsOneWidget);
     expect(find.text('Not enough speech to summarize'), findsNothing);
   });
+
+  testWidgets(
+      'blocked Regenerate on a meeting with existing minutes shows a '
+      'SnackBar with the blocked-state reason, and keeps the minutes',
+      (tester) async {
+    // Simulates a meeting summarized before SummarizeGate existed: it has
+    // minutes already, so OverviewTab's blocked empty-state (no minutes, no
+    // items) never renders here. Regenerate must still tell the user why it
+    // did nothing instead of silently no-op'ing.
+    final m = Meeting(
+      id: 1,
+      title: 'Kept Name',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+      minutes: '### Summary\nMinutes generated before the guard existed.',
+    );
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    await tester.tap(find.text('Regenerate'));
+    // Safe to settle here: nothing is generating (blocked), so the only
+    // animation running is the SnackBar's own finite slide-in.
+    await tester.pumpAndSettle();
+
+    // Same wording as the blocked empty-state uses elsewhere in this file
+    // ('blocked state explains itself with real numbers').
+    expect(find.text('Only 4 words in 0:13.'), findsOneWidget);
+    expect(engine.summarizeCalls, 0);
+
+    // The minutes are untouched — both on screen and in the repository.
+    expect(find.byType(MarkdownBody), findsOneWidget);
+    expect(
+        find.textContaining('Minutes generated before the guard existed.'),
+        findsWidgets);
+    final saved = await repo.byId(1);
+    expect(saved?.minutes,
+        '### Summary\nMinutes generated before the guard existed.');
+  });
+
+  testWidgets(
+      'tapping "Summarize anyway" on the blocked-Regenerate SnackBar '
+      'generates and updates the minutes', (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Kept Name',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+      minutes: '### Summary\nMinutes generated before the guard existed.',
+    );
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    await tester.tap(find.text('Regenerate'));
+    // Safe to settle here: nothing is generating yet (blocked), so the only
+    // animation running is the SnackBar's own finite slide-in.
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Summarize anyway'));
+    // Bounded pumps to drain the generation pass (GeneratingView contains an
+    // infinite pulsing animation, so pumpAndSettle would hang here).
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(engine.summarizeCalls, 1);
+    final saved = await repo.byId(1);
+    expect(saved?.minutes, isNotEmpty);
+    expect(saved?.minutes, contains('Fake minutes for tests.'));
+    expect(find.textContaining('Fake minutes for tests.'), findsWidgets);
+  });
+
+  testWidgets(
+      'Regenerate on a sufficient transcript shows no blocked SnackBar',
+      (tester) async {
+    // No-regression check on the normal (unblocked) path.
+    final m = _meeting(minutes: '### Summary\nOriginal.');
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    await tester.tap(find.text('Regenerate'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(SnackBar), findsNothing);
+
+    // Drain the regeneration pass it kicked off.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(engine.summarizeCalls, 1);
+  });
 }
 
 /// [FakeAiEngine.summarize] that captures the streaming callbacks and never

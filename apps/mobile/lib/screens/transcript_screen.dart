@@ -90,8 +90,9 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
   void _shareText(String body) => Share.share(body, subject: _meeting.title);
 
-  void _snack(String m) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  void _snack(String m, {SnackBarAction? action}) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(m), action: action));
 
   @override
   Widget build(BuildContext context) {
@@ -305,6 +306,18 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     // Check the gate *before* clearing: a blocked regenerate must leave
     // existing minutes intact rather than wiping them and putting nothing back.
     if (!_mayGenerate) {
+      // The blocked empty-state (OverviewTab) only renders when there are no
+      // minutes and no action items yet. A meeting summarized before the
+      // gate existed has minutes already, so that state never shows here —
+      // without this SnackBar, tapping Regenerate would do nothing visible
+      // at all. Same reason copy, same escape hatch as the blocked state.
+      _snack(
+        gateBlockedReason(_verdict, _meeting.durationMs),
+        action: SnackBarAction(
+          label: 'Summarize anyway',
+          onPressed: _summarizeAnyway,
+        ),
+      );
       setState(() {}); // Surface the blocked state; keep the minutes.
       return;
     }
