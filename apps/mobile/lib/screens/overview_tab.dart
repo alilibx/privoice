@@ -19,6 +19,7 @@ class OverviewTab extends StatelessWidget {
     required this.onGenerate,
     required this.onRegenerate,
     required this.onToggleItem,
+    required this.onSummarizeAnyway,
   });
 
   final Meeting meeting;
@@ -33,12 +34,30 @@ class OverviewTab extends StatelessWidget {
   final Future<void> Function() onGenerate;
   final Future<void> Function() onRegenerate;
   final Future<void> Function(int index, bool done) onToggleItem;
+  final VoidCallback onSummarizeAnyway;
 
   bool get _hasMinutes => (meeting.minutes ?? '').isNotEmpty;
+
+  static String _mmss(int durationMs) {
+    final total = (durationMs / 1000).round();
+    final m = total ~/ 60;
+    final s = total % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _reason(GateVerdict v, int durationMs) {
+    if (v.outcome == GateOutcome.tooSparse) {
+      final mins = (durationMs / 60000).round();
+      return '$mins minutes of audio but only ${v.wordCount} words '
+          '— mostly silence.';
+    }
+    return 'Only ${v.wordCount} words in ${_mmss(durationMs)}.';
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     if (busy) {
       return GeneratingView(
@@ -46,6 +65,36 @@ class OverviewTab extends StatelessWidget {
     }
 
     final hasItems = meeting.actionItems.isNotEmpty;
+
+    if (!_hasMinutes &&
+        !hasItems &&
+        !busy &&
+        !overridden &&
+        !verdict.sufficient) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        children: [
+          Icon(Icons.graphic_eq_rounded, size: 48, color: scheme.onSurfaceVariant),
+          const SizedBox(height: 16),
+          Text('Not enough speech to summarize', style: textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(_reason(verdict, meeting.durationMs),
+              style: TextStyle(color: scheme.onSurfaceVariant)),
+          const SizedBox(height: 20),
+          Center(
+            child: TextButton(
+              onPressed: onSummarizeAnyway,
+              child: const Text('Summarize anyway'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('What was recorded', style: textTheme.titleSmall),
+          const SizedBox(height: 8),
+          SelectableText(meeting.transcript ?? ''),
+        ],
+      );
+    }
+
     if (!_hasMinutes && !hasItems) {
       // Nothing cached and not generating: either the model is still
       // preparing, the first pass failed, or there is no transcript to work

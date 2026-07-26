@@ -66,9 +66,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   }
 
   /// One-shot "Summarize anyway" override. Deliberately not persisted: it
-  /// applies to this visit only. Not mutated yet — a future task wires up
-  /// the UI control that flips it — so it cannot be `final`.
-  // ignore: prefer_final_fields
+  /// applies to this visit only.
   bool _overrideGate = false;
 
   String get _transcript => (_meeting.transcript ?? '').trim();
@@ -269,6 +267,11 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     }
   }
 
+  Future<void> _summarizeAnyway() async {
+    setState(() => _overrideGate = true);
+    await _generateOverview();
+  }
+
   /// Kick the pass once, when the model is ready and nothing is cached yet.
   void _maybeAutoGenerate() {
     if (_autoStarted) return;
@@ -294,6 +297,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       onGenerate: _generateOverview,
       onRegenerate: _regenerate,
       onToggleItem: _toggleItem,
+      onSummarizeAnyway: _summarizeAnyway,
     );
   }
 

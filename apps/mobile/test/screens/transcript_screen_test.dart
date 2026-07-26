@@ -399,6 +399,86 @@ void main() {
     expect(saved?.minutes,
         '### Summary\nMinutes generated before the guard existed.');
   });
+
+  testWidgets('blocked state explains itself with real numbers',
+      (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Meeting 10/7 09:00',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+    );
+    await _pump(tester,
+        meeting: m, repo: FakeMeetingRepository([m]), engine: _CountingAiEngine());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not enough speech to summarize'), findsOneWidget);
+    expect(find.text('Only 4 words in 0:13.'), findsOneWidget);
+    // The transcript is never hidden from the user.
+    expect(find.textContaining('So is it working?'), findsWidgets);
+    expect(find.text('Summarize anyway'), findsOneWidget);
+  });
+
+  testWidgets('Summarize anyway overrides the gate and generates',
+      (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Meeting 10/7 09:00',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+    );
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Summarize anyway'));
+    await tester.pumpAndSettle();
+
+    expect(engine.summarizeCalls, 1);
+    expect((await repo.byId(1))?.minutes, isNotEmpty);
+  });
+
+  testWidgets('sparse recordings get the silence wording', (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Meeting 10/7 09:00',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 18 * 60 * 1000,
+      transcript: List.generate(40, (i) => 'word$i').join(' '),
+    );
+    await _pump(tester,
+        meeting: m, repo: FakeMeetingRepository([m]), engine: _CountingAiEngine());
+    await tester.pumpAndSettle();
+
+    expect(find.text('18 minutes of audio but only 40 words — mostly silence.'),
+        findsOneWidget);
+  });
+
+  testWidgets('minutes generated before the guard still render',
+      (tester) async {
+    final m = Meeting(
+      id: 1,
+      title: 'Kept',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+      minutes: '### Summary\nPre-guard minutes.',
+    );
+    await _pump(tester,
+        meeting: m, repo: FakeMeetingRepository([m]), engine: _CountingAiEngine());
+    await tester.pumpAndSettle();
+
+    // The gate governs generation, not display.
+    expect(find.textContaining('Pre-guard minutes.'), findsOneWidget);
+    expect(find.text('Not enough speech to summarize'), findsNothing);
+  });
 }
 
 /// [FakeAiEngine.summarize] that captures the streaming callbacks and never
