@@ -24,9 +24,16 @@ void main() {
 
   setUp(() {
     log = [];
+    // A DONE item stored first, an undone item stored second. This is the
+    // discriminating arrangement: stored order and a done-last sort produce
+    // genuinely different renderings here (Carol first vs. Bob first), so a
+    // reintroduced sort actually gets caught. (An earlier version of this
+    // fixture stored Bob-undone first and Carol-done second, which happens
+    // to match done-last order too, so it could never fail no matter what
+    // the widget did — fixed per code review.)
     items = const [
-      ActionItem(text: 'Bob: finish login'),
       ActionItem(text: 'Carol: release notes', done: true),
+      ActionItem(text: 'Bob: finish login'),
     ];
   });
 
@@ -38,16 +45,20 @@ void main() {
         .map((t) => t.data)
         .whereType<String>()
         .toList();
-    // 'Bob' before 'Carol' is stored order; the old widget sank done items.
-    expect(texts.indexOf('Bob: finish login'),
-        lessThan(texts.indexOf('Carol: release notes')));
+    // Carol (done) is stored first; a done-last sort would push her after
+    // Bob (undone) instead. Asserting she stays first is what actually
+    // catches a reintroduced sort.
+    expect(texts.indexOf('Carol: release notes'),
+        lessThan(texts.indexOf('Bob: finish login')));
   });
 
   testWidgets('tapping the checkbox reports a toggle', (tester) async {
     await pump(tester);
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
-    expect(log, contains('toggle:0:true'));
+    // Carol (done) is index 0 in stored order; tapping her checkbox
+    // unchecks her.
+    expect(log, contains('toggle:0:false'));
   });
 
   testWidgets('editing an item reports the new text', (tester) async {
@@ -59,7 +70,8 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Bob: finish login by Thu');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(log, contains('edit:0:Bob: finish login by Thu'));
+    // Bob is index 1 in stored order.
+    expect(log, contains('edit:1:Bob: finish login by Thu'));
   });
 
   testWidgets('adding an item reports the text', (tester) async {
@@ -88,6 +100,7 @@ void main() {
     await pump(tester);
     await tester.tap(find.byTooltip('Delete item').first);
     await tester.pumpAndSettle();
+    // Carol is index 0 in stored order.
     expect(log, contains('delete:0'));
   });
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:privoice_core/privoice_core.dart';
 
-import '../screens/overview_tab.dart' show AnimatedIn;
+import 'animated_in.dart';
 
 /// Editable, checkable action-item list rendered in **stored order**.
 ///
