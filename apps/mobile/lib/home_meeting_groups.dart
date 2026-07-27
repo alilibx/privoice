@@ -64,7 +64,12 @@ String metaLine(Meeting m, DateTime now) {
   if (m.status == MeetingStatus.transcribing) return '$rel · transcribing…';
   if (m.status == MeetingStatus.failed) return '$rel · failed';
   final parts = <String>[rel, formatDuration(m.durationMs)];
-  if ((m.minutes ?? '').isNotEmpty) parts.add('Minutes');
+  if ((m.minutes ?? '').isNotEmpty) {
+    parts.add('Minutes');
+  } else if ((m.transcript ?? '').trim().isNotEmpty) {
+    // Transcribed but deliberately not summarized — usually the guard.
+    parts.add('Transcript only');
+  }
   if (m.actionItems.isNotEmpty) parts.add('${m.actionItems.length} actions');
   return parts.join(' · ');
 }

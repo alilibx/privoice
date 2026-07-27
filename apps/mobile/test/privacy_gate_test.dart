@@ -33,6 +33,16 @@ class _CountingHttpOverrides extends HttpOverrides {
 ///
 /// The OS-level airplane-mode check (native traffic) is the on-device / Test Lab
 /// complement; native STT/LLM make no network calls by design.
+/// A transcript comfortably over SummarizeGate.minWords (30), so the
+/// auto-generate pass this test relies on actually reaches the model
+/// instead of being blocked by the gate.
+const _richTranscript =
+    'Alice: I think we should ship the beta on Friday if the login screen is '
+    'ready. Bob: I can finish the login screen by Thursday evening. Alice: '
+    'Carol, could you write the release notes for it? Carol: Yes, I will have '
+    'them ready on Friday morning. Bob: We also agreed to postpone the '
+    'analytics work to the next sprint.';
+
 void main() {
   late _CountingHttpOverrides overrides;
   HttpOverrides? previous;
@@ -52,7 +62,7 @@ void main() {
       createdAt: DateTime(2026, 7, 10),
       audioPath: '',
       durationMs: 60000,
-      transcript: 'Alice: ship the beta Friday. Bob: finish login Thursday.',
+      transcript: _richTranscript,
       // No cached minutes: opening the meeting must run the on-device
       // auto-generate pass (minutes -> action items -> title) entirely
       // offline — the strongest form of this privacy assertion.

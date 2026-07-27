@@ -2,8 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/home_meeting_groups.dart';
 import 'package:privoice_core/privoice_core.dart';
 
-Meeting _m(DateTime at, {int ms = 60000, MeetingStatus status = MeetingStatus.done, String? minutes, List<ActionItem> actions = const []}) =>
-    Meeting(title: 't', createdAt: at, audioPath: '', durationMs: ms, status: status, minutes: minutes, actionItems: actions);
+Meeting _m(DateTime at, {int ms = 60000, MeetingStatus status = MeetingStatus.done, String? minutes, List<ActionItem> actions = const [], String? transcript = 't'}) =>
+    Meeting(title: 't', createdAt: at, audioPath: '', durationMs: ms, status: status, minutes: minutes, actionItems: actions, transcript: transcript);
 
 void main() {
   final now = DateTime(2026, 7, 11, 10, 0);
@@ -55,6 +55,18 @@ void main() {
     test('transcribing and failed short-circuit', () {
       expect(metaLine(_m(DateTime(2026, 7, 11, 9), status: MeetingStatus.transcribing), now), '1h ago · transcribing…');
       expect(metaLine(_m(DateTime(2026, 7, 11, 9), status: MeetingStatus.failed), now), '1h ago · failed');
+    });
+    test('transcript but no minutes reads "Transcript only"', () {
+      final m = _m(DateTime(2026, 7, 11, 9), ms: 132000);
+      expect(metaLine(m, now), '1h ago · 2:12 · Transcript only');
+    });
+    test('no transcript and no minutes lists neither', () {
+      final m = _m(DateTime(2026, 7, 11, 9), ms: 132000, transcript: '');
+      expect(metaLine(m, now), '1h ago · 2:12');
+    });
+    test('minutes win over the transcript-only marker', () {
+      final m = _m(DateTime(2026, 7, 11, 9), ms: 132000, minutes: '# x');
+      expect(metaLine(m, now), '1h ago · 2:12 · Minutes');
     });
   });
 }

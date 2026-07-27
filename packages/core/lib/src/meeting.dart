@@ -18,6 +18,7 @@ class Meeting {
     this.minutes,
     this.actionItems = const [],
     this.status = MeetingStatus.recorded,
+    this.minutesEditedAt,
   });
 
   final int? id;
@@ -30,6 +31,11 @@ class Meeting {
   final List<ActionItem> actionItems;
   final MeetingStatus status;
 
+  /// When the user last hand-edited [minutes], or null if the text is exactly
+  /// what the model produced. Drives the "Regenerate replaces your edits"
+  /// confirmation.
+  final DateTime? minutesEditedAt;
+
   Meeting copyWith({
     int? id,
     String? title,
@@ -37,6 +43,9 @@ class Meeting {
     String? minutes,
     List<ActionItem>? actionItems,
     MeetingStatus? status,
+    DateTime? minutesEditedAt,
+    // copyWith treats null as "unchanged", so clearing needs an explicit flag.
+    bool resetMinutesEdited = false,
   }) {
     return Meeting(
       id: id ?? this.id,
@@ -48,6 +57,9 @@ class Meeting {
       minutes: minutes ?? this.minutes,
       actionItems: actionItems ?? this.actionItems,
       status: status ?? this.status,
+      minutesEditedAt: resetMinutesEdited
+          ? null
+          : (minutesEditedAt ?? this.minutesEditedAt),
     );
   }
 
@@ -63,6 +75,7 @@ class Meeting {
             ? null
             : jsonEncode(actionItems.map((a) => a.toJson()).toList()),
         'status': status.name,
+        'minutes_edited_at': minutesEditedAt?.millisecondsSinceEpoch,
       };
 
   factory Meeting.fromRow(Map<String, Object?> row) => Meeting(
@@ -76,6 +89,10 @@ class Meeting {
         minutes: row['minutes'] as String?,
         actionItems: _decodeActionItems(row['action_items'] as String?),
         status: MeetingStatus.values.byName(row['status'] as String),
+        minutesEditedAt: row['minutes_edited_at'] == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(
+                row['minutes_edited_at'] as int),
       );
 
   static List<ActionItem> _decodeActionItems(String? raw) {
