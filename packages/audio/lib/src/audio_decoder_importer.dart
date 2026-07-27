@@ -21,6 +21,14 @@ class AudioDecoderImporter implements AudioImporter {
     required String sourcePath,
     required String targetPath,
   }) async {
+    if (sourcePath == targetPath) {
+      // Guard against the failure-path cleanup below deleting the caller's
+      // only copy of the source. This is a caller bug, not a bad user file,
+      // so it is worded accordingly rather than blaming the file.
+      throw const AudioImportException(
+        'Import misconfigured: source and destination paths must differ.',
+      );
+    }
     if (!await File(sourcePath).exists()) {
       throw const AudioImportException('That file could no longer be found.');
     }

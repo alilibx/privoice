@@ -17,7 +17,12 @@ abstract class AudioImporter {
   /// video, from which the audio track is extracted — and write 16 kHz mono
   /// 16-bit PCM WAV to [targetPath].
   ///
-  /// Throws [AudioImportException] if the source cannot be decoded.
+  /// [sourcePath] and [targetPath] must differ: a failed conversion cleans up
+  /// by deleting [targetPath], and if the two paths were equal that would
+  /// delete the caller's only copy of the source.
+  ///
+  /// Throws [AudioImportException] if the source cannot be decoded, or if
+  /// [sourcePath] equals [targetPath].
   Future<void> toSttWav({
     required String sourcePath,
     required String targetPath,
