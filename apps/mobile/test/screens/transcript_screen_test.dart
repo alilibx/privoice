@@ -672,6 +672,59 @@ void main() {
     }
     expect(engine.summarizeCalls, 1);
   });
+
+  testWidgets('Regenerate warns when minutes were hand-edited', (tester) async {
+    final m = _meeting(minutes: '### Summary\nMine.')
+        .copyWith(minutesEditedAt: DateTime(2026, 7, 27));
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Regenerate'));
+    await tester.pumpAndSettle();
+    expect(find.text('Replace your edits?'), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(engine.summarizeCalls, 0);
+    expect((await repo.byId(1))?.minutes, '### Summary\nMine.');
+  });
+
+  testWidgets('confirming the warning regenerates and clears the edit stamp',
+      (tester) async {
+    final m = _meeting(minutes: '### Summary\nMine.')
+        .copyWith(minutesEditedAt: DateTime(2026, 7, 27));
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Regenerate'));
+    await tester.pumpAndSettle();
+    // The confirm button carries the same label as the trigger, so scope the
+    // tap to the dialog.
+    await tester.tap(find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.text('Regenerate'),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(engine.summarizeCalls, 1);
+    expect((await repo.byId(1))?.minutesEditedAt, isNull);
+  });
+
+  testWidgets('Regenerate does not warn when minutes were never edited',
+      (tester) async {
+    final m = _meeting(minutes: '### Summary\nGenerated.');
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo, engine: _CountingAiEngine());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Regenerate'));
+    await tester.pumpAndSettle();
+    expect(find.text('Replace your edits?'), findsNothing);
+  });
 }
 
 /// [FakeAiEngine.summarize] that captures the streaming callbacks and never

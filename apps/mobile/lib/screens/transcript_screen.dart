@@ -344,6 +344,28 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       setState(() {}); // Surface the blocked state; keep the minutes.
       return;
     }
+    if (_meeting.minutesEditedAt != null) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Replace your edits?'),
+          content: const Text(
+              "Regenerating replaces the minutes you edited. This can't be "
+              'undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Regenerate'),
+            ),
+          ],
+        ),
+      );
+      if (replace != true || !mounted) return;
+    }
     _meeting = _meeting.copyWith(minutes: '', resetMinutesEdited: true);
     await _generateOverview();
   }
