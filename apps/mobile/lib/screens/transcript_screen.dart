@@ -66,8 +66,12 @@ class _TranscriptScreenState extends State<TranscriptScreen>
     super.dispose();
   }
 
-  /// One-shot "Summarize anyway" override. Deliberately not persisted: it
-  /// applies to this visit only.
+  /// One-shot "Summarize anyway" override for this visit. Reset whenever a
+  /// generation pass it enabled fails (model not installed, or an
+  /// exception) — otherwise a single failed override would stay stuck true
+  /// for the rest of the visit, permanently hiding the blocked state's
+  /// escape hatch (heading, reason, inline transcript, and the "Summarize
+  /// anyway" button) behind a bare "No summary yet" with no way back.
   bool _overrideGate = false;
 
   String get _transcript => (_meeting.transcript ?? '').trim();
@@ -209,6 +213,16 @@ class _TranscriptScreenState extends State<TranscriptScreen>
 
   Future<void> _generateOverview() async {
     if (_busy || _transcript.isEmpty) return;
+    // Last line of defense for this branch's headline bug (fabricating
+    // minutes from a near-empty transcript): every current call site already
+    // gates on _mayGenerate before reaching here — _maybeAutoGenerate and
+    // _regenerate check it explicitly, _summarizeAnyway forces it true, and
+    // the only direct wiring left (OverviewTab's Retry button, in the
+    // genFailed state) can only be visible when _mayGenerate is already true,
+    // because OverviewTab's own blocked-state view takes precedence
+    // otherwise. That makes this guard unreachable today, and no honest test
+    // can cover it without contorting that control flow. Left in place
+    // deliberately in case a future caller forgets to gate itself.
     if (!_mayGenerate) return;
     setState(() {
       _busy = true;
@@ -232,10 +246,19 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       if (!mounted) return;
       if (minutes == null) {
         _snack('AI model not installed yet.');
-        setState(() => _busy = false);
+        setState(() {
+          _busy = false;
+          _overrideGate = false;
+        });
         return;
       }
-      _meeting = _meeting.copyWith(minutes: minutes);
+      // Replaces minutes only on success, and clears the hand-edited stamp
+      // here (rather than upfront in _regenerate) so a failed pass leaves
+      // both the old minutes and their edited status untouched — minutes are
+      // never hidden or silently un-marked as edited by a regenerate that
+      // didn't actually produce anything to replace them with.
+      _meeting =
+          _meeting.copyWith(minutes: minutes, resetMinutesEdited: true);
       await widget.repository.update(_meeting);
 
       // 2) Action items from the minutes.
@@ -262,6 +285,7 @@ class _TranscriptScreenState extends State<TranscriptScreen>
         setState(() {
           _busy = false;
           _genFailed = true;
+          _overrideGate = false;
           _busyLabel = 'Couldn’t generate minutes';
         });
         _snack('Generation failed. Tap Regenerate to retry.');
@@ -366,7 +390,14 @@ class _TranscriptScreenState extends State<TranscriptScreen>
       );
       if (replace != true || !mounted) return;
     }
-    _meeting = _meeting.copyWith(minutes: '', resetMinutesEdited: true);
+    // Deliberately do not clear _meeting.minutes here first. While
+    // generation runs, `_busy` is true and OverviewTab shows GeneratingView
+    // regardless of `minutes` — so clearing served no display purpose during
+    // a successful pass, and if the pass fails or the model isn't installed,
+    // clearing first would transiently hide minutes the database still has,
+    // violating the "minutes are never hidden" invariant. Let a successful
+    // pass overwrite `minutes` (see _generateOverview); a failed one leaves
+    // the old minutes exactly as they were.
     await _generateOverview();
   }
 

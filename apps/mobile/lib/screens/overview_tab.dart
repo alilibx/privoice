@@ -83,11 +83,9 @@ class OverviewTab extends StatelessWidget {
 
     final hasItems = meeting.actionItems.isNotEmpty;
 
-    if (!_hasMinutes &&
-        !hasItems &&
-        !busy &&
-        !overridden &&
-        !verdict.sufficient) {
+    // `busy` is always false here: the `if (busy)` early-return above already
+    // handled that case, so `!busy` can never be false at this point.
+    if (!_hasMinutes && !hasItems && !overridden && !verdict.sufficient) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
@@ -155,27 +153,27 @@ class OverviewTab extends StatelessWidget {
       );
     }
 
+    // At this point at least one of hasItems/_hasMinutes is always true: the
+    // `!_hasMinutes && !hasItems` block above always returns, so the "both
+    // false" case never reaches here. No need to re-guard on that below.
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
-        if (hasItems || _hasMinutes) ...[
-          Row(children: [
-            Icon(Icons.check_circle_outline, size: 18, color: scheme.primary),
-            const SizedBox(width: 8),
-            Text('Action items',
-                style: Theme.of(context).textTheme.titleSmall),
-          ]),
-          const SizedBox(height: 12),
-          ActionItemList(
-            items: meeting.actionItems,
-            onToggle: onToggleItem,
-            onEditText: onEditItemText,
-            onAdd: onAddItem,
-            onDelete: onDeleteItem,
-            onReorder: onReorderItems,
-          ),
-          const SizedBox(height: 24),
-        ],
+        Row(children: [
+          Icon(Icons.check_circle_outline, size: 18, color: scheme.primary),
+          const SizedBox(width: 8),
+          Text('Action items', style: Theme.of(context).textTheme.titleSmall),
+        ]),
+        const SizedBox(height: 12),
+        ActionItemList(
+          items: meeting.actionItems,
+          onToggle: onToggleItem,
+          onEditText: onEditItemText,
+          onAdd: onAddItem,
+          onDelete: onDeleteItem,
+          onReorder: onReorderItems,
+        ),
+        const SizedBox(height: 24),
         if (_hasMinutes)
           RevealFade(
             child: MarkdownBody(
@@ -184,26 +182,30 @@ class OverviewTab extends StatelessWidget {
                   .copyWith(p: const TextStyle(fontSize: 15.5, height: 1.5)),
             ),
           ),
-        if (_hasMinutes) ...[
-          const SizedBox(height: 20),
-          Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              children: [
-                TextButton.icon(
-                  onPressed: onEditMinutes,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('Edit'),
-                ),
-                TextButton.icon(
-                  onPressed: onRegenerate,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('Regenerate'),
-                ),
-              ],
-            ),
+        // Reachable whenever we get this far (hasItems || _hasMinutes is
+        // guaranteed true here — see note above), so this is deliberately
+        // unconditional: it is the user's only route back to Edit/Regenerate
+        // minutes after saving an empty edit, or when only action items
+        // exist yet. Gating this on `_hasMinutes` alone (as it used to be)
+        // is what created the dead end in the first place.
+        const SizedBox(height: 20),
+        Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: onEditMinutes,
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Edit'),
+              ),
+              TextButton.icon(
+                onPressed: onRegenerate,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Regenerate'),
+              ),
+            ],
           ),
-        ],
+        ),
       ],
     );
   }

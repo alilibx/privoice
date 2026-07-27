@@ -456,6 +456,45 @@ void main() {
         '### Summary\nMinutes generated before the guard existed.');
   });
 
+  testWidgets(
+      'a blocked regenerate does not show the edited-minutes confirmation, '
+      'even when minutesEditedAt is set', (tester) async {
+    // Ordering regression: _regenerate must check the gate *before* checking
+    // minutesEditedAt. If the confirmation check ran first, a blocked
+    // regenerate on hand-edited minutes would pop "Replace your edits?"
+    // instead of (or before) the blocked SnackBar — offering to replace
+    // minutes with a generation that is never going to happen.
+    final m = Meeting(
+      id: 1,
+      title: 'Kept Name',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+      minutes: '### Summary\nMinutes generated before the guard existed.',
+      minutesEditedAt: DateTime(2026, 7, 27),
+    );
+    final repo = FakeMeetingRepository([m]);
+    final engine = _CountingAiEngine();
+    await _pump(tester, meeting: m, repo: repo, engine: engine);
+
+    await tester.tap(find.text('Regenerate'));
+    // Safe to settle: nothing is generating (blocked), so the only animation
+    // running is the SnackBar's own finite slide-in.
+    await tester.pumpAndSettle();
+
+    // The blocked SnackBar shows, with the same wording as the blocked
+    // empty-state.
+    expect(find.text('Only 4 words in 0:13.'), findsOneWidget);
+    // The "replace your edits" confirmation must NOT appear.
+    expect(find.text('Replace your edits?'), findsNothing);
+    expect(engine.summarizeCalls, 0);
+
+    final saved = await repo.byId(1);
+    expect(saved?.minutes,
+        '### Summary\nMinutes generated before the guard existed.');
+  });
+
   testWidgets('blocked state explains itself with real numbers',
       (tester) async {
     final m = Meeting(
@@ -497,6 +536,40 @@ void main() {
 
     expect(engine.summarizeCalls, 1);
     expect((await repo.byId(1))?.minutes, isNotEmpty);
+  });
+
+  testWidgets(
+      'a failed Summarize-anyway pass resets the override, restoring the '
+      'blocked state and its escape hatch', (tester) async {
+    // _overrideGate used to be sticky: once "Summarize anyway" failed, it
+    // stayed true, so the blocked state's heading/reason/transcript/button
+    // never showed again for the rest of the visit — replaced by a bare
+    // "No summary yet" with no way back.
+    final m = Meeting(
+      id: 1,
+      title: 'Meeting 10/7 09:00',
+      createdAt: DateTime(2026, 7, 10),
+      audioPath: '',
+      durationMs: 13000,
+      transcript: 'So is it working?',
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo, engine: _ThrowingAiEngine());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Summarize anyway'));
+    // Bounded pumps: the busy view's pulsing sparkle animation repeats
+    // forever, so pumpAndSettle would hang while the (failing) pass runs.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // The failed pass must not permanently hide the blocked state: heading,
+    // reason, inline transcript, and the escape hatch are all back.
+    expect(find.text('Not enough speech to summarize'), findsOneWidget);
+    expect(find.text('Only 4 words in 0:13.'), findsOneWidget);
+    expect(find.textContaining('So is it working?'), findsWidgets);
+    expect(find.text('Summarize anyway'), findsOneWidget);
   });
 
   testWidgets('sparse recordings get the silence wording', (tester) async {
@@ -652,6 +725,37 @@ void main() {
   });
 
   testWidgets(
+      'saving empty minutes via the editor still leaves a route back to '
+      'Regenerate', (tester) async {
+    // The dead-end regression: the Edit/Regenerate button row used to be
+    // gated on `_hasMinutes` alone, so saving an empty edit made both
+    // buttons vanish — with action items still rendering, _maybeAutoGenerate
+    // would not re-fire on reopen either, leaving no in-app route back.
+    final m = _meeting(
+      minutes: '### Summary\nOriginal.',
+      items: const [ActionItem(text: 'Ship it')],
+    );
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+
+    final saved = await repo.byId(1);
+    expect(saved?.minutes, isEmpty);
+
+    // The route back is still there: Regenerate (and Edit) remain reachable
+    // even with minutes now empty, because action items still exist.
+    expect(find.text('Regenerate'), findsOneWidget);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Ship it'), findsOneWidget);
+  });
+
+  testWidgets(
       'Regenerate on a sufficient transcript shows no blocked SnackBar',
       (tester) async {
     // No-regression check on the normal (unblocked) path.
@@ -712,6 +816,32 @@ void main() {
 
     expect(engine.summarizeCalls, 1);
     expect((await repo.byId(1))?.minutesEditedAt, isNull);
+  });
+
+  testWidgets(
+      'a failed regenerate leaves the previously rendered minutes intact',
+      (tester) async {
+    // "Minutes are never hidden" invariant: _regenerate used to clear
+    // _meeting.minutes *before* generating, so a failed pass (model not
+    // installed, or an exception) showed an empty/failed state even though
+    // the database still had the old minutes, until the screen reopened.
+    final m = _meeting(minutes: '### Summary\nOriginal, still good.');
+    final repo = FakeMeetingRepository([m]);
+    await _pump(tester, meeting: m, repo: repo, engine: _ThrowingAiEngine());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Regenerate'));
+    // Bounded pumps: the busy view's pulsing sparkle animation repeats
+    // forever, so pumpAndSettle would hang while the (failing) pass runs.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // The old minutes are still rendered on screen, not an empty state.
+    expect(find.byType(MarkdownBody), findsOneWidget);
+    expect(find.textContaining('Original, still good.'), findsWidgets);
+    // ...and untouched in the repository too.
+    expect((await repo.byId(1))?.minutes, '### Summary\nOriginal, still good.');
   });
 
   testWidgets('Regenerate does not warn when minutes were never edited',
