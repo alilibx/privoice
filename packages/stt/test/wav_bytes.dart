@@ -12,6 +12,13 @@ Uint8List wavBytes({
   /// Insert a LIST chunk before `data`. Real files do this, and a reader that
   /// assumes data lives at a fixed offset silently reads garbage.
   bool includeListChunk = false,
+  /// Insert a chunk with an odd-sized (3-byte) payload before `data`, plus
+  /// the RIFF-mandated single pad byte to keep the next chunk word-aligned.
+  /// Exercises the `size.isOdd` branch of the chunk walk — a reader that
+  /// drops the pad (or adds one when it shouldn't) misreads `data` as
+  /// starting one byte early or late, i.e. the same silent-garbage failure
+  /// mode the LIST-chunk test exists to catch.
+  bool includeOddSizedChunk = false,
   /// Declare a `data` size larger than the bytes actually present.
   int? overrideDataSize,
   /// Truncate the output to this many bytes.
@@ -35,8 +42,9 @@ Uint8List wavBytes({
   }
 
   final listChunk = includeListChunk ? 12 : 0; // 8 header + 4 payload
+  final oddChunk = includeOddSizedChunk ? 12 : 0; // 8 header + 3 payload + 1 pad
   ascii('RIFF');
-  u32(4 + 24 + listChunk + 8 + data.length); // 'WAVE' + fmt + list + data hdr
+  u32(4 + 24 + listChunk + oddChunk + 8 + data.length); // 'WAVE' + fmt + list + odd + data hdr
   ascii('WAVE');
 
   ascii('fmt ');
@@ -52,6 +60,13 @@ Uint8List wavBytes({
     ascii('LIST');
     u32(4);
     ascii('INFO');
+  }
+
+  if (includeOddSizedChunk) {
+    ascii('JUNK');
+    u32(3); // odd payload size — the size the reader must not misparse
+    out.add(Uint8List.fromList([0xAA, 0xBB, 0xCC])); // 3-byte payload
+    out.add(Uint8List.fromList([0x00])); // RIFF pad byte to word-align
   }
 
   ascii('data');

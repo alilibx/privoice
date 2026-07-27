@@ -37,6 +37,22 @@ void main() {
     await r.close();
   });
 
+  test('skips an odd-sized chunk (with its RIFF pad byte) before data',
+      () async {
+    // A chunk walk that drops (or mis-adds) the word-alignment pad byte
+    // would misread `data` as starting one byte early or late.
+    final path = await write(
+        wavBytes(samples: [1, 2, 3, 4], includeOddSizedChunk: true));
+    final r = await WavReader.open(path);
+    expect(r.sampleCount, 4);
+    final w = await r.readWindow(0, 4);
+    expect(w[0], closeTo(1 / 32768, 1e-9));
+    expect(w[1], closeTo(2 / 32768, 1e-9));
+    expect(w[2], closeTo(3 / 32768, 1e-9));
+    expect(w[3], closeTo(4 / 32768, 1e-9));
+    await r.close();
+  });
+
   test('rejects stereo, wrong bit depth, wrong rate, non-PCM', () async {
     Future<void> expectRejected(List<int> bytes, String name) async {
       final path = await write(bytes, name: name);
