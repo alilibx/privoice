@@ -189,9 +189,9 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: main
-      resolved-ref: "3b1351a957920bf2a0df3709cce1e3a7195c479e"
-      url: "https://github.com/Telosnex/fllama.git"
+      ref: "fix/ios-cpu-no-runtime-metal-compile"
+      resolved-ref: ac6f80bdf27aa887d0d8c61c220f0e0b27da3b84
+      url: "https://github.com/alilibx/fllama.git"
     source: git
     version: "0.0.1"
   flutter:

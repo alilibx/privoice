@@ -82,17 +82,33 @@ Future<void> _maybeSeed(MeetingRepository repo) async {
 }
 
 /// Sentinel-gated on-device LLM proof: with a `.ai_selftest` file present and
-/// the GGUF model in place, summarize a canned transcript and log timing +
-/// output (read via logcat). No sentinel → normal app.
+/// the GGUF model in place, summarize a canned transcript and record timing +
+/// output. No sentinel → normal app.
+///
+/// Results go to BOTH stdout and `ai_selftest_result.txt` beside the sentinel.
+/// The file matters on iOS: `print` in a release build goes to os_log, which
+/// modern macOS cannot stream from a connected device (`log stream` dropped
+/// `--device`) and which `devicectl ... --console` does not capture either.
+/// A file can be pulled off the device with:
+///
+/// ```
+///   xcrun devicectl device copy from --device DEVICE_ID \
+///     --domain-type appDataContainer --domain-identifier BUNDLE_ID \
+///     --source Documents/ai_selftest_result.txt --destination ./result.txt
+/// ```
+///
+/// It also reports load time separately from generation time, because the two
+/// have completely different causes when this is slow.
 Future<void> _maybeAiSelfTest() async {
+  File? out;
   try {
     final ext = await devSentinelDir();
     if (ext == null) return;
     if (!File(p.join(ext.path, '.ai_selftest')).existsSync()) return;
+    out = File(p.join(ext.path, 'ai_selftest_result.txt'));
     final model = await AiModelLocator.llama();
     if (model == null) {
-      // ignore: avoid_print
-      print('AI_SELFTEST model missing');
+      _selfTestReport(out, 'AI_SELFTEST model missing');
       return;
     }
     const transcript =
@@ -101,17 +117,38 @@ Future<void> _maybeAiSelfTest() async {
         'Carol: Yes, I will have them ready Friday morning. Bob: We also '
         'decided to postpone the analytics feature to next sprint.';
     final engine = OnDeviceAiEngine(model);
-    final sw = Stopwatch()..start();
+
+    // Warm-up is the model load + backend init; timing it separately is what
+    // distinguishes "slow to start" from "slow to generate".
+    final loadSw = Stopwatch()..start();
+    await engine.warmUp();
+    loadSw.stop();
+
+    final genSw = Stopwatch()..start();
     final minutes = await engine.summarize(transcript);
-    sw.stop();
-    // ignore: avoid_print
-    print('AI_SELFTEST ms=${sw.elapsedMilliseconds} chars=${minutes.length}');
-    // ignore: avoid_print
-    print('AI_SELFTEST_OUT ${minutes.replaceAll('\n', ' | ')}');
+    genSw.stop();
+
+    _selfTestReport(
+      out,
+      'AI_SELFTEST model=${p.basename(model)} '
+      'loadMs=${loadSw.elapsedMilliseconds} '
+      'genMs=${genSw.elapsedMilliseconds} '
+      'chars=${minutes.length}\n'
+      'AI_SELFTEST_OUT ${minutes.replaceAll('\n', ' | ')}',
+    );
     await engine.dispose();
   } catch (e) {
-    // ignore: avoid_print
-    print('AI_SELFTEST error=$e');
+    _selfTestReport(out, 'AI_SELFTEST error=$e');
+  }
+}
+
+void _selfTestReport(File? out, String line) {
+  // ignore: avoid_print
+  print(line);
+  try {
+    out?.writeAsStringSync('$line\n', flush: true);
+  } catch (_) {
+    // Best effort: stdout already carries it where logs are readable.
   }
 }
 
