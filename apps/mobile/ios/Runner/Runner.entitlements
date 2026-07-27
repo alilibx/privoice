@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Privoice loads a quantised LLM (770 MB for Llama-3.2-1B Q4, ~2 GB for the
+	     3B tier) plus a 650 MB STT model entirely into memory, on device. iOS
+	     applies a per-app memory cap well below what that needs on some
+	     hardware, and exceeding it gets the app killed by jetsam rather than
+	     given an out-of-memory error you can handle.
+
+	     This entitlement raises that cap. It is required before offering the
+	     3B model tier on iOS, and is cheap insurance for the 1B tier on
+	     lower-RAM devices such as the iPhone 13 (4 GB). -->
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
+</dict>
+</plist>
