@@ -48,15 +48,23 @@ class ChunkPlanner {
 
       var best = math.min(next, sampleCount - 1);
       var bestRms = double.infinity;
+      var bestDist = (best - next).abs();
       for (var s = lo; s <= hi; s += frame) {
         final rms = await rmsAt(s, frame);
-        // `<=` (not `<`): on a tie, prefer the later candidate. With a
-        // strict `<`, uniformly loud audio always resolves ties to `lo`,
-        // so every boundary drifts backward by a full snap window and
-        // chunks systematically shrink, which can silently add an extra
-        // chunk to an exact multiple of the target length.
-        if (rms <= bestRms) {
+        final dist = (s - next).abs();
+        // Lowest RMS wins outright — a genuine silence always beats
+        // proximity to the target. On a tie (e.g. uniformly loud audio,
+        // where no candidate is quieter than any other), prefer whichever
+        // candidate is closest to the raw target offset, rather than
+        // whichever end of the scan window happened to be checked first or
+        // last. Without this, a strict `<` always resolves ties to `lo`
+        // (boundary drifts back a full snap window, shrinking chunks and
+        // silently adding an extra one to an exact multiple of the target
+        // length) and a bare `<=` always resolves ties to `hi` (boundary
+        // drifts forward a full snap window instead of landing on target).
+        if (rms < bestRms || (rms == bestRms && dist < bestDist)) {
           bestRms = rms;
+          bestDist = dist;
           best = s;
         }
       }

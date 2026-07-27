@@ -95,5 +95,16 @@ void main() {
       }
       expect(chunks.last.endSample, total);
     });
+
+    test('with no silence, the boundary lands exactly on the target',
+        () async {
+      // Uniform RMS: every candidate in the scan window ties, so the
+      // tie-break must fall back to proximity to the raw target offset —
+      // the boundary should land exactly on `target`, not merely somewhere
+      // within the snap window either side of it.
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: target * 2, sampleRate: sr, rmsAt: uniform);
+      expect(chunks[0].endSample, target);
+    });
   });
 }
