@@ -376,14 +376,15 @@ class _TranscriptScreenState extends State<TranscriptScreen>
   }
 
   /// Wired to `ActionItemList`'s drag handle via [ActionItemList.onReorder].
-  /// Follows `ReorderableListView`'s own index convention: [newIndex] is
-  /// reported as if the dragged item were still present, so an item moving
-  /// later in the list needs the `-1` fix-up below before insertion.
+  /// `ActionItemList` uses `ReorderableListView.onReorderItem` internally,
+  /// which already applies its own `if (newIndex > oldIndex) newIndex -= 1;`
+  /// fix-up before invoking this — so [newIndex] here is already the correct
+  /// final insertion index into the post-removal list; no further adjustment
+  /// is needed.
   Future<void> _reorderItems(int oldIndex, int newIndex) async {
     final items = List<ActionItem>.of(_meeting.actionItems);
     final item = items.removeAt(oldIndex);
-    final insertAt = newIndex > oldIndex ? newIndex - 1 : newIndex;
-    items.insert(insertAt, item);
+    items.insert(newIndex, item);
     setState(() => _meeting = _meeting.copyWith(actionItems: items));
     await widget.repository.update(_meeting);
   }

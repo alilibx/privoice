@@ -112,11 +112,16 @@ void main() {
     ];
     await pump(tester);
 
-    // Drag 'first' down past 'second'.
+    // Drag 'first' down past 'second'. `ReorderableListView.onReorderItem`
+    // (unlike the deprecated `onReorder`) only fires when the drop actually
+    // changes the item's final position — a drag that ends up back where it
+    // started legitimately reports nothing. 130px reliably crosses fully
+    // past the next row for this list's item height (verified empirically:
+    // smaller offsets can land back on the origin slot).
     final handle = find.byIcon(Icons.drag_handle_rounded).first;
     final gesture = await tester.startGesture(tester.getCenter(handle));
     await tester.pump(const Duration(milliseconds: 200));
-    await gesture.moveBy(const Offset(0, 60));
+    await gesture.moveBy(const Offset(0, 130));
     await tester.pump(const Duration(milliseconds: 200));
     await gesture.up();
     await tester.pumpAndSettle();

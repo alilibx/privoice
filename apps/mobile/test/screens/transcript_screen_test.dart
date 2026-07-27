@@ -288,7 +288,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final list = tester.widget<ActionItemList>(find.byType(ActionItemList));
-    await list.onReorder(0, 2); // ReorderableListView's post-removal index
+    // Pre-adjusted index, as `ReorderableListView.onReorderItem` now passes
+    // it (it applies the "moved past itself" -1 fix-up before calling us).
+    await list.onReorder(0, 1);
     await tester.pumpAndSettle();
 
     final saved = await repo.byId(1);

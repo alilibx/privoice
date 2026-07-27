@@ -19,6 +19,17 @@ import 'animated_in.dart';
 /// practice because the inner list never scrolls on its own — dragging past
 /// its bounds is a drag, not a scroll, so there is no gesture-arena conflict
 /// with the outer scroll view.
+///
+/// Known limitation, accepted as a product trade-off rather than fixed:
+/// because `shrinkWrap: true` gives the inner `ReorderableListView` a
+/// `maxScrollExtent` of 0, Flutter's `EdgeDraggingAutoScroller` has nothing
+/// to scroll and never reaches up into the outer `OverviewTab` list. So if
+/// there are more action items than fit in the visible viewport, dragging an
+/// item to the very edge of the screen will **not** auto-scroll the list to
+/// reveal items further away — the drag is confined to whatever is already
+/// on screen. Typical meetings produce a handful of action items (well
+/// within one screen), so this was accepted rather than switching to a
+/// reorder-mode toggle with a full-screen reorderable list.
 class ActionItemList extends StatelessWidget {
   const ActionItemList({
     super.key,
@@ -75,16 +86,12 @@ class ActionItemList extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           buildDefaultDragHandles: false,
-          // Deliberately the deprecated `onReorder`, not `onReorderItem`:
-          // this widget's own [onReorder] contract (and the index fix-up in
-          // `_TranscriptScreenState._reorderItems`, plus the persistence
-          // test that drives it directly) all assume ReorderableListView's
-          // original "as if the dragged item were still present" newIndex.
-          // `onReorderItem` pre-adjusts that index, which would silently
-          // double-correct downstream. Keep this until upstream removes
-          // `onReorder` outright.
-          // ignore: deprecated_member_use
-          onReorder: onReorder,
+          // `onReorderItem` (not the deprecated `onReorder`) already applies
+          // Flutter's own `if (newIndex > oldIndex) newIndex -= 1;` fix-up
+          // before calling this, so [onReorder] here receives the final,
+          // already-adjusted insertion index — `_TranscriptScreenState
+          // ._reorderItems` no longer has to redo that adjustment itself.
+          onReorderItem: onReorder,
           children: [
             for (var i = 0; i < items.length; i++)
               AnimatedIn(
