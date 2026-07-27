@@ -2,3 +2,4 @@ export 'src/transcript.dart';
 export 'src/stt_engine.dart';
 export 'src/sherpa_stt_engine.dart';
 export 'src/background_stt.dart';
+export 'src/wav_reader.dart';
