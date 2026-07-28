@@ -36,7 +36,29 @@ Future<void> main() async {
   final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);
   await _maybeAiSelfTest();
+  await _collectOrphanedAudio(repository);
   runApp(PrivoiceApp(repository: repository, ai: AiService(), themeMode: themeMode));
+}
+
+/// Reclaims meeting audio no row references. This is the backstop for a delete
+/// whose undo window was cut short by the process being killed, and it also
+/// collects files leaked before collection existed, so existing installs
+/// self-heal on the next launch.
+///
+/// Runs here because startup is the one moment no recording or import can be in
+/// flight — [MeetingAudioStore.collect]'s precondition. Never blocks launch:
+/// reclaiming disk matters less than starting, and the next launch retries.
+Future<void> _collectOrphanedAudio(MeetingRepository repository) async {
+  try {
+    final store = await MeetingAudioStore.forApp();
+    final meetings = await repository.all();
+    final collected = await store.collect(meetings.map((m) => m.audioPath));
+    if (collected > 0) {
+      debugPrint('Collected $collected orphaned meeting audio file(s).');
+    }
+  } catch (e) {
+    debugPrint('Orphaned-audio collection skipped: $e');
+  }
 }
 
 /// Debug-only: with a `.seed` sentinel present and no meetings yet, insert one
