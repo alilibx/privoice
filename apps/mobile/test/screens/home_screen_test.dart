@@ -88,4 +88,10 @@ void main() {
     expect(find.text('Design review'), findsOneWidget);
     expect(find.text('Standup'), findsNothing);
   });
+
+  testWidgets('offers an Import action', (tester) async {
+    await tester.pumpWidget(host(FakeMeetingRepository(), manager: readyManager()));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Import'), findsOneWidget);
+  });
 }

@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:privoice_core/privoice_core.dart';
 import 'package:privoice_models/privoice_models.dart';
@@ -5,6 +6,7 @@ import 'package:privoice_models/privoice_models.dart';
 import '../ai_service.dart';
 import '../home_meeting_groups.dart';
 import '../model_manager.dart';
+import 'import_screen.dart';
 import 'record_screen.dart';
 import 'settings_screen.dart';
 import 'transcript_screen.dart';
@@ -78,6 +80,30 @@ class _HomeScreenState extends State<HomeScreen> {
     if (saved == true) _load();
   }
 
+  Future<void> _import() async {
+    // file_picker 11 exposes pickFiles as a static; the older
+    // `FilePicker.platform.pickFiles` accessor no longer exists.
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const [
+        'm4a', 'mp3', 'wav', 'aac', 'aiff', 'caf', 'flac',
+        'ogg', 'opus', 'amr', 'mp4', 'mov', 'webm',
+      ],
+    );
+    final path = picked?.files.single.path;
+    if (path == null || !mounted) return; // cancelled
+
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ImportScreen(
+          repository: widget.repository,
+          sourcePath: path,
+        ),
+      ),
+    );
+    if (saved == true) _load(); // same refresh the record flow triggers
+  }
+
   Future<void> _open(Meeting m) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -122,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _Header(themeMode: widget.themeMode),
+            _Header(themeMode: widget.themeMode, onImport: _import),
             _SearchField(onChanged: (v) => setState(() => _query = v)),
             if (!_manager.allReady)
               _DownloadBanner(
@@ -183,8 +209,9 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.themeMode});
+  const _Header({required this.themeMode, required this.onImport});
   final ValueNotifier<ThemeMode> themeMode;
+  final VoidCallback onImport;
 
   @override
   Widget build(BuildContext context) {
@@ -207,6 +234,11 @@ class _Header extends StatelessWidget {
                   color: scheme.primary,
                   fontWeight: FontWeight.w600,
                   fontSize: 13)),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: 'Import',
+            onPressed: onImport,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(
