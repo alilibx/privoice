@@ -140,7 +140,7 @@ World-class quality requires **real-device testing across a tier matrix** (emula
 | T7 | Accessibility + **Arabic / RTL** pass (GCC market) | ⬜ | |
 | T8 | Automated release gates + quality dashboard | ⬜ | |
 
-**Current automated coverage:** **176 tests** (`melos run test`, 2026-07-28) — unit (serialization, repository CRUD via in-memory ffi, prompts, map-reduce, config, benchmark) + **widget tests** (Home: empty/list/search, delete/undo/audio-collection incl. the two data-loss regressions; Transcript: smart-action bar, summarize→minutes, action-item chips) with fakes for repo/AI. Plus one STT integration test + sentinel-gated on-device STT & LLM self-tests. CI workflow written. **Gaps:** golden tests, privacy zero-network gate, device matrix, ML-quality/perf harness, live CI run.
+**Current automated coverage:** **176 tests** (`melos run test`, 2026-07-28) — unit (serialization, repository CRUD via in-memory ffi, prompts, map-reduce, config, benchmark) + **widget tests** (Home: empty/list/search, delete/undo/audio-collection incl. the two data-loss regressions; Transcript: smart-action bar, summarize→minutes, action-item chips) with fakes for repo/AI. Plus one STT integration test + sentinel-gated on-device STT & LLM self-tests. **Gaps:** golden tests, ML-quality/perf harness (T4–T6). *(Corrected 2026-07-28: this line previously listed the privacy zero-network gate, the device matrix, a live CI run and "CI workflow written" as gaps, contradicting T1's ✅ privacy gate, T2's ✅ green CI and T3's ✅ Test Lab matrix in the table above. Two independent reviewers flagged the contradiction.)*
 
 ---
 
