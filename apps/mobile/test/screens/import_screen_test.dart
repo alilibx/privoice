@@ -256,6 +256,13 @@ void main() {
     await tester.pump();
     expect(find.byType(ImportScreen), findsOneWidget);
 
+    // And the back arrow is disabled, not merely inert — an enabled control that
+    // silently does nothing reads as a broken app (found on device).
+    final back = tester.widget<IconButton>(
+      find.widgetWithIcon(IconButton, Icons.arrow_back),
+    );
+    expect(back.onPressed, isNull);
+
     gate.complete();
     await pumpUntil(tester, () => find.byType(ImportScreen).evaluate().isEmpty,
         reason: 'the import never finished');

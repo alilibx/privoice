@@ -163,10 +163,20 @@ class _ImportScreenState extends State<ImportScreen> {
     // Nothing cancels the transcode or the isolate, so backing out used to let a
     // successful import land silently: the Meeting was inserted but the pop(true)
     // that refreshes Home never fired, and the meeting only appeared on restart.
+    final canLeave = _phase == _Phase.error;
     return PopScope(
-      canPop: _phase == _Phase.error,
+      canPop: canLeave,
       child: Scaffold(
-      appBar: AppBar(title: const Text('Import recording')),
+      appBar: AppBar(
+        title: const Text('Import recording'),
+        // Disable rather than leave enabled-but-inert. PopScope already refuses
+        // the pop, so a tappable back arrow that silently does nothing reads as
+        // a broken app; RecordScreen disables its close icon the same way.
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: canLeave ? () => Navigator.of(context).maybePop() : null,
+        ),
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
