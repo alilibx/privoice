@@ -60,6 +60,7 @@ class _ImportScreenState extends State<ImportScreen> {
   _Phase _phase = _Phase.converting;
   double _progress = 0;
   String _error = '';
+  bool _running = false;
 
   @override
   void initState() {
@@ -68,7 +69,10 @@ class _ImportScreenState extends State<ImportScreen> {
   }
 
   Future<void> _run() async {
+    if (_running) return; // 'Try again' is only shown in the error phase, but
+    if (!mounted) return; // a double-tap must not start two imports.
     setState(() {
+      _running = true;
       _phase = _Phase.converting;
       _progress = 0;
       _error = '';
@@ -76,6 +80,17 @@ class _ImportScreenState extends State<ImportScreen> {
 
     String? wavPath;
     try {
+      // Resolve the model BEFORE transcoding: converting first would spend
+      // minutes and ~115 MB per hour of audio only to fail on a model that was
+      // never there. HomeScreen also gates Import on sttReady; this is the
+      // backstop for a model that disappears between the two checks.
+      final model = await _locateModel();
+      if (model == null) {
+        throw const AudioImportException(
+          'The speech model is not ready yet. Try again once setup finishes.',
+        );
+      }
+
       final dir = await _workDir();
       wavPath = p.join(
         dir.path,
@@ -87,15 +102,11 @@ class _ImportScreenState extends State<ImportScreen> {
         targetPath: wavPath,
       );
 
-      final model = await _locateModel();
-      if (model == null) {
-        throw const AudioImportException(
-          'The speech model is not ready yet. Try again once setup finishes.',
-        );
-      }
-
-      if (!mounted) return;
-      setState(() => _phase = _Phase.transcribing);
+      // Deliberately not `if (!mounted) return`: an early return here would
+      // skip the catch's cleanup and orphan the converted WAV in app documents
+      // forever. Finishing the work instead keeps the file referenced by a real
+      // Meeting row, which is the honest outcome — the import did succeed.
+      if (mounted) setState(() => _phase = _Phase.transcribing);
 
       final reader = await WavReader.open(wavPath);
       final duration = reader.duration;
@@ -133,6 +144,8 @@ class _ImportScreenState extends State<ImportScreen> {
             ? e.message
             : "That file couldn't be imported.";
       });
+    } finally {
+      _running = false;
     }
   }
 
@@ -146,7 +159,13 @@ class _ImportScreenState extends State<ImportScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
+    // Block leaving mid-import, exactly as RecordScreen does mid-transcribe.
+    // Nothing cancels the transcode or the isolate, so backing out used to let a
+    // successful import land silently: the Meeting was inserted but the pop(true)
+    // that refreshes Home never fired, and the meeting only appeared on restart.
+    return PopScope(
+      canPop: _phase == _Phase.error,
+      child: Scaffold(
       appBar: AppBar(title: const Text('Import recording')),
       body: Center(
         child: Padding(
@@ -194,6 +213,7 @@ class _ImportScreenState extends State<ImportScreen> {
               ),
           },
         ),
+      ),
       ),
     );
   }

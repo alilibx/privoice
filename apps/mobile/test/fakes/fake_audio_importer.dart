@@ -7,12 +7,21 @@ import 'package:privoice_audio/privoice_audio.dart';
 /// Writes a real, valid 16 kHz mono 16-bit WAV so the import flow can be
 /// tested end to end without invoking native decoders.
 class FakeAudioImporter implements AudioImporter {
-  FakeAudioImporter({this.seconds = 2, this.failWith, this.gate});
+  FakeAudioImporter({
+    this.seconds = 2,
+    this.failWith,
+    this.failTimes,
+    this.gate,
+  });
 
   final int seconds;
 
   /// When set, [toSttWav] throws this instead of writing a file.
   final AudioImportException? failWith;
+
+  /// Limits [failWith] to the first N calls, so a test can exercise a retry
+  /// that succeeds. Null means every call fails.
+  final int? failTimes;
 
   /// When set, [toSttWav] waits on this before doing anything, so a test can
   /// hold the caller in its "converting" state and assert on it.
@@ -29,7 +38,8 @@ class FakeAudioImporter implements AudioImporter {
     final hold = gate;
     if (hold != null) await hold.future;
     final fail = failWith;
-    if (fail != null) throw fail;
+    final limit = failTimes;
+    if (fail != null && (limit == null || calls <= limit)) throw fail;
 
     const sampleRate = 16000;
     final samples = sampleRate * seconds;
