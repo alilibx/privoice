@@ -54,29 +54,37 @@ not otherwise exist.
 Takes its directory as a constructor argument so tests use a temp dir and never touch
 `path_provider`. This matches the injection convention used elsewhere in the codebase.
 
-Its entire surface is one method:
+Its surface is one predicate in two scopes (**corrected after review** — see §3):
 
 ```dart
-/// Deletes meeting audio files in this directory that no meeting references.
-/// Returns how many files were removed.
+/// Sweeps the directory. Deletes every meeting audio file no meeting
+/// references. Returns how many files were removed. Quiescent moments only.
 Future<int> collect(Iterable<String> referencedPaths)
+
+/// Deletes this one file if no meeting references it. Safe at any moment.
+Future<bool> collectOne(String path, Iterable<String> referencedPaths)
 ```
 
-`collect` is the whole mechanism. It is not a private helper behind two public methods — one method,
-two call sites.
+Both ask the same question of a file — *is its name one a meeting-audio writer produces, and is that
+name unreferenced?* — through one private predicate. They differ only in how many files they ask it
+about. The "one predicate, one place" property is the point of the design; the two scopes are a
+blast-radius choice, not a second mechanism.
 
 ### Call sites
 
-| When | Purpose |
-|---|---|
-| `HomeScreen._delete`, after the SnackBar closes | reclaims the file promptly |
-| App startup (`main.dart`), after the repository opens | catches the app-kill case, and anything already leaked by past installs |
+| When | Scope | Purpose |
+|---|---|---|
+| `HomeScreen._delete`, after the SnackBar closes | `collectOne(m.audioPath, …)` | reclaims the file promptly, and *only* that file |
+| App startup (`main.dart`), after the repository opens | `collect(…)` | catches the app-kill case, and anything already leaked by past installs |
 
 The startup call is also the migration story: existing users with already-orphaned files get them
 reclaimed on the next launch, with no extra code.
 
-In both cases `referencedPaths` is `(await repository.all()).map((m) => m.audioPath)` — the live row
-set, read at the moment of collection, never a cached list.
+In both cases `referencedPaths` is `await repository.audioPaths()` — the live row set, read at the
+moment of collection, never a cached list. `audioPaths()` is a projection (`columns: ['audio_path']`)
+rather than `all()`: `Meeting.fromRow` decodes a whole transcript and runs a `jsonDecode` per row for
+action items, all of it discarded here, and the startup call pays that cost before `runApp`, over the
+Android platform channel, on the slowest device we support.
 
 **Startup must not be blocked or broken by collection.** Reclaiming disk is never more important than
 launching the app, so the startup call is awaited but wrapped so a failure (permissions, a directory
@@ -119,24 +127,63 @@ siblings, and anything else the app or OS puts there.
 `collect` lists the directory first, then deletes only from that snapshot. A file created after the
 listing cannot be deleted by an in-flight sweep, which closes the obvious race.
 
-### 3. A documented precondition
+### 3. Scope, not a precondition — **corrected after review**
 
-`ImportScreen` writes its WAV and inserts the `Meeting` row only after transcription completes —
-minutes later for a long file. **During that window the WAV is legitimately unreferenced**, and a
-concurrent `collect` would delete the user's in-progress import.
+> **What this section originally argued, and why it was wrong.** It claimed a whole-directory sweep
+> from `HomeScreen` was safe "because both capture screens (`RecordScreen`, `ImportScreen`) are pushed
+> *above* Home, so neither call site can fire mid-capture," and turned that into a documented
+> precondition ("only call when no capture or import is in flight"). That is a non-sequitur.
+> `ScaffoldMessenger` sits **above** the `Navigator`, so the SnackBar's auto-dismiss timer arms and
+> fires regardless of which route is on top, and `_HomeScreenState` stays mounted underneath and runs
+> `_delete`'s pending continuation. Pushing a route does not suspend it. The whole-branch review
+> reproduced two data-loss bugs from this, both fixed by the scope split below. The original argument
+> is recorded here rather than quietly deleted, because "a route is on top" is an attractive and wrong
+> reason to believe code is not running.
 
-Today this cannot happen: both capture screens (`RecordScreen`, `ImportScreen`) are pushed *above*
-Home, so neither call site can fire mid-capture, and the startup sweep runs before any capture is
-possible. That is a property of the current navigation, not of `collect` itself, so it goes in the doc
-comment as an explicit precondition:
+Meeting audio is **legitimately unreferenced while it is being captured.** `AppAudioRecorder.start`
+creates `meeting_<ms>.wav` immediately and `RecordScreen` inserts the row only after transcription
+finishes; `ImportScreen` does the same, minutes later for a long file. It is **not** only
+`ImportScreen` — a plain recording has exactly the same window.
 
-> Only call when no capture or import is in flight.
+So a whole-directory sweep is only safe at a moment when nothing can be writing meeting audio, and
+there are two distinct bad moments to protect against, both live at Home:
 
-If that ever stops holding — a periodic sweep, a background task, a settings-screen "reclaim space"
-button — the correct fix is to make in-flight files unmistakable rather than to weaken the sweep:
-write to a `.part` suffix and rename on commit, or move meeting audio into a dedicated subdirectory.
-Recording this now is the point; it is the kind of latent trap that otherwise gets discovered by
-deleting someone's two-hour import.
+1. **A capture in flight.** Delete a meeting; start recording inside the undo window; when the window
+   closes, a sweep deletes the in-flight WAV. Transcription then fails and the recording is lost.
+2. **A second delete's undo window.** `ScaffoldMessenger.showSnackBar` queues FIFO. Delete A then B
+   in quick succession: both rows are already gone, so when A's window closes a sweep deletes B's
+   audio while B's **Undo is still on screen**. Tapping Undo restores a row pointing at a deleted
+   file. `await undo` is per-invocation; a sweep is global.
+
+The fix is scope, and it holds by construction rather than by a precondition anyone has to remember:
+
+- **App startup owns the sweep.** Nothing can be recording or importing before `runApp`, so that
+  moment genuinely is quiescent — the one place `collect` belongs.
+- **Home deletes exactly one named file** with `collectOne(m.audioPath, …)`. An in-flight recording is
+  a different path, so it can never be the target; meeting B's file is a different path, so A's
+  continuation can never touch it. Both bugs die by construction, not by timing.
+
+Each of the two bugs has a regression test in `home_screen_test.dart`; both were confirmed to fail
+against the pre-fix code.
+
+If a whole-directory sweep is ever wanted at a non-quiescent moment — a periodic sweep, a background
+task, a settings-screen "reclaim space" button — the correct fix is to make in-flight files
+unmistakable rather than to weaken the predicate: write to a `.part` suffix and rename on commit, or
+move meeting audio into a dedicated subdirectory.
+
+### 4. A bounded undo window, and what that costs
+
+The Undo SnackBar carries an action, and Flutter defaults `persist` to `action != null`
+(`snack_bar.dart`), while `ScaffoldMessengerState.build` makes the auto-dismiss timer `return` without
+hiding when `persist` is set. Left at the default the SnackBar never auto-closes, so the undo window
+never closes and prompt reclamation never runs. Hence `persist: false`.
+
+`persist` is also how Flutter now implements the documented "a SnackBar with an action does not time
+out under TalkBack/VoiceOver" exemption, so opting out of persist opts out of that too: a
+screen-reader user gets a bounded — and, under `accessibleNavigation`, unanimated — window to
+double-tap Undo on a destructive action. The concession is an explicit `duration: 10s` instead of the
+4s default: long enough to hear the announcement and act, short enough that the file is reclaimed
+promptly. Recorded as an accepted cost, not an oversight.
 
 ### Also handled
 
@@ -169,10 +216,24 @@ deleting someone's two-hour import.
 - tolerates a referenced path whose file is missing
 - returns the number actually deleted
 
-`HomeScreen` widget tests for the two paths that matter, with the store injected:
+`collectOne` gets the same treatment, plus the property the scope split exists for: **it never touches
+any file other than the one named** (an in-flight capture, another pending delete's audio and
+`privoice.db` all survive a `collectOne` aimed at a fourth file), and a path outside the directory
+resolves inside it rather than deleting somewhere the store does not own.
+
+`SqfliteMeetingRepository.audioPaths()` gets tests for the projection itself: one entry per row
+including `''`, and nothing for a deleted row.
+
+`HomeScreen` widget tests, with the store injected:
 
 - delete → tap **Undo** → the file still exists
 - delete → let the SnackBar close → the file is gone
+- **delete A, then delete B before A's window closes → B's file still exists** (finding 2)
+- **delete A, then a capture creates an unreferenced `meeting_<later ms>.wav` → that file still
+  exists after A's window closes, while A's own file is gone** (finding 1)
+
+These tests must not use `pumpAndSettle` around the undo window (the SnackBar animates and will not
+settle) and must advance past the 10s duration, not the 4s default.
 
 The repository is **not** changed, and that is intentional: `MeetingRepository` is a storage contract
 and should not own filesystem policy. A test-level note records why, so the naive
