@@ -36,7 +36,33 @@ Future<void> main() async {
   final themeMode = ValueNotifier<ThemeMode>(await SettingsService.themeMode());
   await _maybeSeed(repository);
   await _maybeAiSelfTest();
+  await _collectOrphanedAudio(repository);
   runApp(PrivoiceApp(repository: repository, ai: AiService(), themeMode: themeMode));
+}
+
+/// Reclaims meeting audio no row references. This is the backstop for a delete
+/// whose undo window was cut short by the process being killed, and it also
+/// collects files leaked before collection existed, so existing installs
+/// self-heal on the next launch.
+///
+/// A whole-directory sweep is only safe at a quiescent moment, and this is the
+/// one there is: nothing can be recording or importing before `runApp`, so no
+/// file is legitimately unreferenced yet. Anywhere the app is live, use
+/// [MeetingAudioStore.collectOne] instead (as `HomeScreen` does).
+///
+/// Never blocks launch: reclaiming disk matters less than starting, and the next
+/// launch retries. `audioPaths()` rather than `all()` for the same reason — this
+/// is on the critical path to first frame and needs no other column.
+Future<void> _collectOrphanedAudio(MeetingRepository repository) async {
+  try {
+    final store = await MeetingAudioStore.forApp();
+    final collected = await store.collect(await repository.audioPaths());
+    if (collected > 0) {
+      debugPrint('Collected $collected orphaned meeting audio file(s).');
+    }
+  } catch (e) {
+    debugPrint('Orphaned-audio collection skipped: $e');
+  }
 }
 
 /// Debug-only: with a `.seed` sentinel present and no meetings yet, insert one

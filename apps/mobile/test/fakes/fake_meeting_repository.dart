@@ -19,6 +19,10 @@ class FakeMeetingRepository implements MeetingRepository {
   }
 
   @override
+  Future<List<String>> audioPaths() async =>
+      _items.map((m) => m.audioPath).toList();
+
+  @override
   Future<Meeting?> byId(int id) async =>
       _items.where((m) => m.id == id).firstOrNull;
 

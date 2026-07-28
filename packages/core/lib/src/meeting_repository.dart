@@ -9,6 +9,15 @@ import 'meeting.dart';
 /// Storage contract for meetings. UI depends on this, not on sqflite.
 abstract class MeetingRepository {
   Future<List<Meeting>> all();
+
+  /// Every row's `audioPath` and nothing else — the live reference set
+  /// [MeetingAudioStore] needs. A projection rather than `all()` because
+  /// `Meeting.fromRow` decodes a whole transcript and runs a `jsonDecode` per
+  /// row for action items, all of it discarded here; the startup collection
+  /// pays that cost before `runApp`, over the platform channel, on the slowest
+  /// device we support.
+  Future<List<String>> audioPaths();
+
   Future<Meeting?> byId(int id);
   Future<Meeting> insert(Meeting meeting);
   Future<void> update(Meeting meeting);
@@ -92,6 +101,12 @@ class SqfliteMeetingRepository implements MeetingRepository {
   Future<List<Meeting>> all() async {
     final rows = await _db.query('meetings', orderBy: 'created_at DESC');
     return rows.map(Meeting.fromRow).toList();
+  }
+
+  @override
+  Future<List<String>> audioPaths() async {
+    final rows = await _db.query('meetings', columns: ['audio_path']);
+    return rows.map((row) => row['audio_path'] as String).toList();
   }
 
   @override
