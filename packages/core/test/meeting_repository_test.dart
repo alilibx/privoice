@@ -84,6 +84,29 @@ void main() {
     expect(await repo.all(), isEmpty);
   });
 
+  test("audioPaths() projects every row's audio_path, including empty",
+      () async {
+    final repo = await _memoryRepo();
+    await repo.insert(_m('One'));
+    await repo.insert(_m('Two'));
+    // The dev seed inserts audioPath: '' — it must appear, not be dropped, so
+    // the caller sees exactly one entry per row.
+    await repo.insert(Meeting(
+      title: 'Seeded',
+      createdAt: DateTime(2026, 7, 10, 8),
+      audioPath: '',
+      durationMs: 1000,
+    ));
+    expect(await repo.audioPaths(), ['/a.wav', '/a.wav', '']);
+  });
+
+  test('audioPaths() drops the row it no longer has', () async {
+    final repo = await _memoryRepo();
+    final saved = await repo.insert(_m('Gone'));
+    await repo.delete(saved.id!);
+    expect(await repo.audioPaths(), isEmpty);
+  });
+
   test('v1 → v2 upgrade adds minutes/action_items columns', () async {
     // Open as v1 schema, then reopen at current version to trigger onUpgrade.
     final db = await databaseFactoryFfi.openDatabase(

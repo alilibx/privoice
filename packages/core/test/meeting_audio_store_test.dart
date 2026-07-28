@@ -95,6 +95,71 @@ void main() {
     expect(MeetingAudioStore.isMeetingAudioFileName('xmeeting_1.wav'), isFalse);
   });
 
+  group('collectOne (the scope that is safe while the app is live)', () {
+    test('deletes the named file when nothing references it', () async {
+      final orphan = touch('meeting_1000.wav');
+      expect(await store.collectOne(orphan.path, const []), isTrue);
+      expect(orphan.existsSync(), isFalse);
+    });
+
+    test('keeps the named file when a row still references it', () async {
+      // This is the Undo case: the row is back, so the file must stay.
+      final kept = touch('meeting_1000.wav');
+      expect(await store.collectOne(kept.path, [kept.path]), isFalse);
+      expect(kept.existsSync(), isTrue);
+    });
+
+    test('never touches any file other than the one named', () async {
+      // The whole point of the targeted scope: an in-flight capture and another
+      // pending delete's audio are both unreferenced, and both must survive.
+      final target = touch('meeting_1000.wav');
+      final inFlightCapture = touch('meeting_9000.wav');
+      final otherPendingDelete = touch('meeting_2000.wav');
+      final db = touch('privoice.db');
+
+      expect(await store.collectOne(target.path, const []), isTrue);
+      expect(target.existsSync(), isFalse);
+      expect(inFlightCapture.existsSync(), isTrue);
+      expect(otherPendingDelete.existsSync(), isTrue);
+      expect(db.existsSync(), isTrue);
+    });
+
+    test('tolerates an empty path', () async {
+      final untouched = touch('meeting_1000.wav');
+      expect(await store.collectOne('', const []), isFalse);
+      expect(untouched.existsSync(), isTrue);
+    });
+
+    test('tolerates a name no writer produces', () async {
+      final db = touch('privoice.db');
+      expect(await store.collectOne(db.path, const []), isFalse);
+      expect(db.existsSync(), isTrue);
+    });
+
+    test('tolerates a missing file', () async {
+      final missing = p.join(dir.path, 'meeting_9999.wav');
+      expect(await store.collectOne(missing, const []), isFalse);
+    });
+
+    test('a path outside the directory resolves inside it, never outside',
+        () async {
+      // A stale container prefix must not aim a delete somewhere this store
+      // does not own; the name is resolved against [directory].
+      final outside = await Directory.systemTemp.createTemp('outside_store');
+      addTearDown(() async {
+        if (outside.existsSync()) await outside.delete(recursive: true);
+      });
+      final stranger = File(p.join(outside.path, 'meeting_1000.wav'))
+        ..writeAsStringSync('x');
+      final ours = touch('meeting_1000.wav');
+
+      expect(await store.collectOne(stranger.path, const []), isTrue);
+      expect(stranger.existsSync(), isTrue,
+          reason: 'a file outside the store directory is not ours to delete');
+      expect(ours.existsSync(), isFalse);
+    });
+  });
+
   // Why MeetingRepository.delete is deliberately NOT changed to delete the file:
   // Home's Undo re-inserts the meeting, so the file must outlive the row. Making
   // delete() remove the file is the obvious fix and it breaks Undo — restoring a

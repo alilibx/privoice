@@ -137,20 +137,60 @@ void main() {
       if (dir.existsSync()) await dir.delete(recursive: true);
     });
 
-    /// A meeting whose audio is a real file in [dir].
-    (Meeting, File) seeded() {
-      final file = File(p.join(dir.path, 'meeting_1000.wav'))
+    /// A meeting whose audio is a real file named `meeting_<stamp>.wav` in
+    /// [dir] — i.e. a name `MeetingAudioStore` actually considers.
+    (Meeting, File) seededAs(String title, int stamp, DateTime at) {
+      final file = File(p.join(dir.path, 'meeting_$stamp.wav'))
         ..writeAsStringSync('x');
       return (
         Meeting(
-          title: 'Standup',
-          createdAt: DateTime(2026, 7, 10, 9),
+          title: title,
+          createdAt: at,
           audioPath: file.path,
           durationMs: 60000,
           transcript: 'daily sync',
         ),
         file,
       );
+    }
+
+    /// A meeting whose audio is a real file in [dir].
+    (Meeting, File) seeded() =>
+        seededAs('Standup', 1000, DateTime(2026, 7, 10, 9));
+
+    /// Pumps for a bounded stretch without gating on anything, so that any
+    /// filesystem work a *wrong* implementation would do gets a fair chance to
+    /// land before a "this file must still exist" assertion runs. Without this
+    /// such an assertion could pass merely by winning a race.
+    Future<void> soak(WidgetTester tester, {int rounds = 20}) async {
+      for (var i = 0; i < rounds; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 2)),
+        );
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+    }
+
+    /// Dismisses [title]'s row and waits until its undo window is really
+    /// running: the row gone from the list, then the SnackBar animated in and
+    /// its auto-dismiss timer armed.
+    ///
+    /// The second half matters. `ScaffoldMessengerState.build` arms that timer
+    /// only on a frame where the entry animation has already *completed*, so a
+    /// caller that jumps the clock too early elapses past nothing and then
+    /// waits a further full duration for a timer armed at the far end of the
+    /// jump. Measured here: the SnackBar first appears ~400ms after the row
+    /// goes (Dismissible's resize, then `_delete`'s `await repository.delete`),
+    /// and needs 250ms more to finish animating in — so this pumps a
+    /// deliberately generous 1.5s of small frames. It is all fake-clock time,
+    /// so it is exact, not a sleep.
+    Future<void> dismiss(WidgetTester tester, String title) async {
+      await tester.fling(find.text(title), const Offset(-500, 0), 1000);
+      await pumpUntil(tester, () => find.text(title).evaluate().isEmpty,
+          reason: '"$title" was never dismissed');
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
     }
 
     Widget hostWithStore(MeetingRepository repo) => MaterialApp(
@@ -195,12 +235,77 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Undo'), findsOneWidget);
 
-      // Default SnackBar duration is 4s; run past it, then let collection land.
-      await tester.pump(const Duration(seconds: 5));
+      // The undo window is an explicit 10s (see `HomeScreen._delete`, which
+      // lengthens it because `persist: false` also opts out of Flutter's
+      // no-timeout-under-a-screen-reader exemption); run past it, then let
+      // collection land.
+      await tester.pump(const Duration(seconds: 11));
       await pumpUntil(tester, () => !file.existsSync(),
           reason: 'the orphaned audio was never collected');
 
       expect(file.existsSync(), isFalse);
+    });
+
+    // The two regression tests below encode why collection from Home must be
+    // *targeted* at the one file whose row was just deleted, rather than a
+    // global sweep. `_delete`'s continuation resumes when the SnackBar closes,
+    // and `_HomeScreenState` stays mounted the whole time — so that moment is
+    // not quiescent: a capture may be in flight, or another delete's undo
+    // window may still be open. A global sweep at that moment deletes files it
+    // has no business touching. Both were reproduced before the fix.
+
+    testWidgets('a second delete keeps its audio while its own Undo is live',
+        (tester) async {
+      final (a, fileA) = seededAs('Standup', 1000, DateTime(2026, 7, 10, 9));
+      final (b, fileB) =
+          seededAs('Design review', 2000, DateTime(2026, 7, 10, 11));
+      await tester.pumpWidget(hostWithStore(FakeMeetingRepository([a, b])));
+      await tester.pumpAndSettle();
+
+      // Two deletes in quick succession. SnackBars queue FIFO, so B's Undo is
+      // still pending (unshown, then shown) while A's window runs out — and by
+      // then *both* rows are already gone from the repository.
+      await dismiss(tester, 'Standup');
+      await dismiss(tester, 'Design review');
+      expect(fileB.existsSync(), isTrue,
+          reason: 'sanity: B is deleted but its audio is not collected yet');
+
+      // Run past A's undo window (10s) so A's continuation collects.
+      await tester.pump(const Duration(seconds: 11));
+      await pumpUntil(tester, () => !fileA.existsSync(),
+          reason: "A's own orphaned audio was never collected");
+      await soak(tester);
+
+      expect(fileB.existsSync(), isTrue,
+          reason: "A's collection must not touch B's audio — B's Undo is "
+              'still offered, and tapping it would restore a row pointing at '
+              'a deleted file');
+    });
+
+    testWidgets('a capture started during the undo window keeps its audio',
+        (tester) async {
+      final (a, fileA) = seededAs('Standup', 1000, DateTime(2026, 7, 10, 9));
+      await tester.pumpWidget(hostWithStore(FakeMeetingRepository([a])));
+      await tester.pumpAndSettle();
+
+      await dismiss(tester, 'Standup');
+
+      // Stand in for a recording (or import) that starts after the delete:
+      // `AppAudioRecorder.start` creates `meeting_<ms>.wav` immediately, and
+      // `RecordScreen` inserts the row only after transcription finishes, so
+      // the file is legitimately unreferenced for the whole capture.
+      final inFlight = File(p.join(dir.path, 'meeting_9000.wav'))
+        ..writeAsStringSync('recording…');
+
+      // Run past A's undo window (10s) so A's continuation collects.
+      await tester.pump(const Duration(seconds: 11));
+      await pumpUntil(tester, () => !fileA.existsSync(),
+          reason: "A's own orphaned audio was never collected");
+      await soak(tester);
+
+      expect(inFlight.existsSync(), isTrue,
+          reason: 'the in-flight capture is unreferenced by design; deleting '
+              'it loses the recording the user is making right now');
     });
   });
 }

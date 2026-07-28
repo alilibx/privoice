@@ -110,12 +110,25 @@ class _HomeScreenState extends State<HomeScreen> {
         .showSnackBar(
           SnackBar(
             content: Text('Deleted "${m.title}"'),
-            // A SnackBar with an action defaults `persist` to true (Flutter
-            // keeps action snackbars on screen until dismissed), which would
-            // leave this one showing indefinitely. The Undo window must
-            // actually close so collection runs, so opt back into the normal
-            // timed auto-dismiss.
+            // A SnackBar with an action defaults `persist` to true
+            // (`snack_bar.dart`: `persist = persist ?? action != null`), and
+            // `ScaffoldMessengerState.build` makes the auto-dismiss timer
+            // `return` without hiding when persist is set — so this SnackBar
+            // would stay on screen indefinitely and the Undo window would
+            // never close, which is the moment reclamation runs. Hence
+            // `persist: false`.
+            //
+            // The cost, deliberately accepted: `persist` is also how Flutter
+            // now implements the "a SnackBar with an action does not time out
+            // under TalkBack/VoiceOver" exemption (still documented on
+            // `SnackBar` itself). Opting out of persist opts out of that too,
+            // so a screen-reader user gets a bounded — and unanimated, since
+            // accessibleNavigation makes the dismiss instant — window to
+            // double-tap Undo on a destructive action. 10s rather than the 4s
+            // default is the concession: long enough to hear the announcement
+            // and act, still short enough that the file is reclaimed promptly.
             persist: false,
+            duration: const Duration(seconds: 10),
             action: SnackBarAction(
               label: 'Undo',
               onPressed: () => undo = _undoDelete(m),
@@ -130,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // the only question that matters is whether any row still references the
     // file; if Undo ran, it does, and the file is kept. That stays correct if
     // Undo ever becomes reachable another way.
-    await _collectAudio();
+    await _collectAudio(m.audioPath);
   }
 
   Future<void> _undoDelete(Meeting m) async {
@@ -138,13 +151,23 @@ class _HomeScreenState extends State<HomeScreen> {
     await _load();
   }
 
-  /// Reclaims audio no meeting references. Failing to reclaim disk must never
-  /// surface over a successful delete — the startup pass retries.
-  Future<void> _collectAudio() async {
+  /// Reclaims [audioPath] if no meeting still references it.
+  ///
+  /// Targeted at the one file whose row was just deleted, **not** a sweep. This
+  /// runs when the Undo SnackBar closes, and that moment is not quiescent:
+  /// `ScaffoldMessenger` lives above the `Navigator`, so the timer arms and
+  /// this continuation resumes while this state is still mounted, no matter
+  /// which route is on top. A sweep here would delete a recording started
+  /// during the window (its WAV exists before its row does) and the audio of a
+  /// second delete whose own Undo is still on screen. Naming one file makes
+  /// both impossible — they are different names.
+  ///
+  /// Failing to reclaim disk must never surface over a successful delete — the
+  /// startup pass retries.
+  Future<void> _collectAudio(String audioPath) async {
     try {
       final store = widget.audioStore ?? await MeetingAudioStore.forApp();
-      final meetings = await widget.repository.all();
-      await store.collect(meetings.map((m) => m.audioPath));
+      await store.collectOne(audioPath, await widget.repository.audioPaths());
     } catch (e) {
       // Swallowed, but not silently — a bare `catch (_) {}` here would hide a
       // real bug forever, and this path is invisible to the user by design.
