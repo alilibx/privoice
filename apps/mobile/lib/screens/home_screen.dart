@@ -18,12 +18,17 @@ class HomeScreen extends StatefulWidget {
     required this.ai,
     required this.themeMode,
     this.modelManager,
+    this.audioStore,
   });
 
   final MeetingRepository repository;
   final AiService ai;
   final ValueNotifier<ThemeMode> themeMode;
   final ModelManager? modelManager;
+
+  /// Defaults to [MeetingAudioStore.forApp]. Injected in tests, which cannot
+  /// reach `path_provider`.
+  final MeetingAudioStore? audioStore;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -96,18 +101,55 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _all = _all.where((x) => x.id != m.id).toList());
     await widget.repository.delete(m.id!);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Deleted "${m.title}"'),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () async {
-            await widget.repository.insert(m);
-            _load();
-          },
-        ),
-      ),
-    );
+
+    // Undo's re-insert is async and can outlive the dismiss animation, so hold
+    // its future — collecting before it lands would delete the file the user
+    // just restored.
+    Future<void>? undo;
+    final closed = ScaffoldMessenger.of(context)
+        .showSnackBar(
+          SnackBar(
+            content: Text('Deleted "${m.title}"'),
+            // A SnackBar with an action defaults `persist` to true (Flutter
+            // keeps action snackbars on screen until dismissed), which would
+            // leave this one showing indefinitely. The Undo window must
+            // actually close so collection runs, so opt back into the normal
+            // timed auto-dismiss.
+            persist: false,
+            action: SnackBarAction(
+              label: 'Undo',
+              onPressed: () => undo = _undoDelete(m),
+            ),
+          ),
+        )
+        .closed;
+
+    await closed;
+    await undo;
+    // Deliberately not branching on the close reason. Once the SnackBar is gone
+    // the only question that matters is whether any row still references the
+    // file; if Undo ran, it does, and the file is kept. That stays correct if
+    // Undo ever becomes reachable another way.
+    await _collectAudio();
+  }
+
+  Future<void> _undoDelete(Meeting m) async {
+    await widget.repository.insert(m);
+    await _load();
+  }
+
+  /// Reclaims audio no meeting references. Failing to reclaim disk must never
+  /// surface over a successful delete — the startup pass retries.
+  Future<void> _collectAudio() async {
+    try {
+      final store = widget.audioStore ?? await MeetingAudioStore.forApp();
+      final meetings = await widget.repository.all();
+      await store.collect(meetings.map((m) => m.audioPath));
+    } catch (e) {
+      // Swallowed, but not silently — a bare `catch (_) {}` here would hide a
+      // real bug forever, and this path is invisible to the user by design.
+      debugPrint('Audio collection after delete skipped: $e');
+    }
   }
 
   @override
