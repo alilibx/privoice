@@ -1,6 +1,13 @@
 import 'package:privoice_models/privoice_models.dart';
 import 'package:privoice_stt/privoice_stt.dart';
 
+/// The signature of [ModelLocator.parakeet].
+///
+/// Exists so a caller can hold model resolution as a dependency rather than
+/// reaching for the static: the real one hits the S5 downloader and the app-owned
+/// filesystem, neither of which exists in a widget test.
+typedef SttModelResolver = Future<SttModelPaths?> Function();
+
 /// Resolves the on-device STT model from the app-owned models dir (populated by
 /// the S5 downloader). Returns null until it's installed.
 class ModelLocator {

@@ -59,6 +59,18 @@ class SttRequest {
   final SendPort? progressPort;
 }
 
+/// The signature of [transcribeFileInBackground].
+///
+/// Exists so a caller can hold transcription as a dependency instead of calling
+/// the top-level function directly: the real one spawns a `compute` isolate,
+/// which cannot complete against a widget test's fake clock, so any screen that
+/// hard-codes it is untestable.
+typedef FileTranscriber = Future<Transcript> Function(
+  SttModelPaths paths,
+  String wavPath, {
+  void Function(double fraction)? onProgress,
+});
+
 /// Runs init → chunked transcribe → dispose inside a one-shot isolate (via
 /// [compute]) so the model load and inference never block the UI.
 ///

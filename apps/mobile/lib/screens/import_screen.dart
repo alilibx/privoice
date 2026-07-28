@@ -15,18 +15,33 @@ enum _Phase { converting, transcribing, error }
 /// [Meeting]. Pops `true` when a meeting was saved.
 ///
 /// Takes a [sourcePath] rather than doing its own file picking, so it can be
-/// widget-tested without `file_picker`.
+/// widget-tested without `file_picker`. Every other outside-world dependency is
+/// injectable for the same reason: the defaults reach a native decoder, a
+/// `compute` isolate, the model downloader and `path_provider`, none of which
+/// work inside `testWidgets`.
 class ImportScreen extends StatefulWidget {
   const ImportScreen({
     super.key,
     required this.repository,
     required this.sourcePath,
     this.importer,
+    this.transcriber,
+    this.locateModel,
+    this.workDir,
   });
 
   final MeetingRepository repository;
   final String sourcePath;
   final AudioImporter? importer;
+
+  /// Defaults to [transcribeFileInBackground].
+  final FileTranscriber? transcriber;
+
+  /// Defaults to [ModelLocator.parakeet].
+  final SttModelResolver? locateModel;
+
+  /// Where the converted WAV is written. Defaults to app documents.
+  final Future<Directory> Function()? workDir;
 
   @override
   State<ImportScreen> createState() => _ImportScreenState();
@@ -35,6 +50,12 @@ class ImportScreen extends StatefulWidget {
 class _ImportScreenState extends State<ImportScreen> {
   late final AudioImporter _importer =
       widget.importer ?? const AudioDecoderImporter();
+  late final FileTranscriber _transcribe =
+      widget.transcriber ?? transcribeFileInBackground;
+  late final SttModelResolver _locateModel =
+      widget.locateModel ?? ModelLocator.parakeet;
+  late final Future<Directory> Function() _workDir =
+      widget.workDir ?? getApplicationDocumentsDirectory;
 
   _Phase _phase = _Phase.converting;
   double _progress = 0;
@@ -55,7 +76,7 @@ class _ImportScreenState extends State<ImportScreen> {
 
     String? wavPath;
     try {
-      final dir = await getApplicationDocumentsDirectory();
+      final dir = await _workDir();
       wavPath = p.join(
         dir.path,
         'imported_${DateTime.now().millisecondsSinceEpoch}.wav',
@@ -66,7 +87,7 @@ class _ImportScreenState extends State<ImportScreen> {
         targetPath: wavPath,
       );
 
-      final model = await ModelLocator.parakeet();
+      final model = await _locateModel();
       if (model == null) {
         throw const AudioImportException(
           'The speech model is not ready yet. Try again once setup finishes.',
@@ -80,7 +101,7 @@ class _ImportScreenState extends State<ImportScreen> {
       final duration = reader.duration;
       await reader.close();
 
-      final transcript = await transcribeFileInBackground(
+      final transcript = await _transcribe(
         model,
         wavPath,
         onProgress: (f) {
