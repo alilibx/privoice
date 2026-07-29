@@ -205,7 +205,7 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: "fix/ios-cpu-no-runtime-metal-compile"
+      ref: ac6f80bdf27aa887d0d8c61c220f0e0b27da3b84
       resolved-ref: ac6f80bdf27aa887d0d8c61c220f0e0b27da3b84
       url: "https://github.com/alilibx/fllama.git"
     source: git
