@@ -12,7 +12,7 @@ dependencies:
   flutter:
     sdk: flutter
   fllama:
-    # Our fork. Pinned to a branch, not upstream main, because upstream builds
+    # Our fork, not upstream main, because upstream builds
     # llama.cpp for iOS with GGML_METAL_EMBED_LIBRARY=ON — that embeds ggml's
     # Metal *source* and compiles it on-device on first inference, which takes
     # minutes on a real iPhone and never completed in >3 min on an iPhone 17.
