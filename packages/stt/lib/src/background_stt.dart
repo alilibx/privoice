@@ -135,11 +135,19 @@ Future<Transcript> _transcribeAsync(SttRequest req) async {
       final chunk = chunks[i];
       final samples = await r.readWindow(chunk.startSample, chunk.sampleCount);
 
+      // The stream holds native heap (tens of MB) and is derived from `rec`, so
+      // it must be freed even when a chunk throws — otherwise the leak survives
+      // to the next chunk, and the outer `finally` frees the recognizer while a
+      // live stream still points at it.
       final stream = rec.createStream();
-      stream.acceptWaveform(samples: samples, sampleRate: r.sampleRate);
-      rec.decode(stream);
-      final text = rec.getResult(stream).text;
-      stream.free();
+      final String text;
+      try {
+        stream.acceptWaveform(samples: samples, sampleRate: r.sampleRate);
+        rec.decode(stream);
+        text = rec.getResult(stream).text;
+      } finally {
+        stream.free();
+      }
 
       segments.add(TranscriptSegment(
         text: text,
