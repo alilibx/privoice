@@ -25,6 +25,24 @@ class ChunkPlanner {
   /// Granularity of the RMS scan.
   static const int rmsFrameMs = 20;
 
+  /// Shortest chunk worth handing to the recognizer; anything shorter is
+  /// merged into its predecessor instead of being emitted.
+  ///
+  /// This exists because the RMS scan is clamped to `sampleCount - frame` so it
+  /// never reads past the end of the file, which lets the last boundary land as
+  /// little as one [rmsFrameMs] frame — 320 samples, 20 ms — before EOF. A file
+  /// of `target + 1` samples, or one whose quietest frame is its last, would
+  /// then end on a 320-sample chunk. At 16 kHz a feature extractor with a 25 ms
+  /// window and 10 ms hop yields *zero* frames from 20 ms of audio, so the
+  /// encoder is handed an empty feature matrix: at best a wasted decode and an
+  /// empty segment, at worst a native throw inside the isolate that discards
+  /// the entire transcription after all the work is done.
+  ///
+  /// One second is the floor because no shorter span can carry a recognisable
+  /// word; merging costs at most one extra second on the preceding chunk, which
+  /// changes neither peak memory nor cut quality in any meaningful way.
+  static const int minChunkSeconds = 1;
+
   static Future<List<Chunk>> plan({
     required int sampleCount,
     required int sampleRate,
@@ -75,6 +93,17 @@ class ChunkPlanner {
       bounds.add(best);
       next = best + target;
     }
+
+    // Drop trailing boundaries that would leave a chunk below the floor, which
+    // merges the offcut into its predecessor. See [minChunkSeconds] for why a
+    // 20 ms tail is not merely wasteful but a hazard. Only the last chunk can
+    // ever be this short — interior boundaries are at least `target - snap`
+    // apart — but the loop is written to hold regardless.
+    final minChunk = minChunkSeconds * sampleRate;
+    while (bounds.length > 1 && sampleCount - bounds.last < minChunk) {
+      bounds.removeLast();
+    }
+
     bounds.add(sampleCount);
 
     final chunks = <Chunk>[];
