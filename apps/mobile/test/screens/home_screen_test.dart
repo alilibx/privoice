@@ -126,6 +126,26 @@ void main() {
     expect(find.text('Standup'), findsNothing);
   });
 
+  testWidgets('offers an Import action', (tester) async {
+    await tester.pumpWidget(host(FakeMeetingRepository(), manager: readyManager()));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Import'), findsOneWidget);
+  });
+
+  testWidgets('tapping import while STT not ready shows a snackbar',
+      (tester) async {
+    await tester.pumpWidget(host(FakeMeetingRepository(),
+        manager: ModelManager(downloader: FakeModelDownloader())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Import'));
+    await tester.pump();
+    // Gating here rather than inside ImportScreen matters: without it the user
+    // picks a file and waits out a full transcode before being told the model
+    // was never ready. It also keeps the file picker from opening at all, so no
+    // full-size cache copy of their recording is made for nothing.
+    expect(find.textContaining('Speech-to-text'), findsOneWidget);
+  });
+
   group('deleting a meeting collects its audio', () {
     late Directory dir;
 

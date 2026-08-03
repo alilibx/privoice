@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:privoice_core/privoice_core.dart';
 import 'package:privoice_models/privoice_models.dart';
@@ -5,6 +6,7 @@ import 'package:privoice_models/privoice_models.dart';
 import '../ai_service.dart';
 import '../home_meeting_groups.dart';
 import '../model_manager.dart';
+import 'import_screen.dart';
 import 'record_screen.dart';
 import 'settings_screen.dart';
 import 'transcript_screen.dart';
@@ -81,6 +83,67 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
     if (saved == true) _load();
+  }
+
+  Future<void> _import() async {
+    // Check the model before the picker, not after the transcode: converting a
+    // 90-minute file and *then* saying "model not ready" throws away minutes of
+    // the user's time, and a first-run user is exactly the one still downloading.
+    if (!_manager.sttReady) {
+      final pct =
+          (_manager.stateOf(ModelCatalog.parakeetStt).fraction * 100).round();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Speech-to-text is still downloading ($pct%)'),
+      ));
+      return;
+    }
+
+    String? path;
+    try {
+      // file_picker 11 exposes pickFiles as a static; the older
+      // `FilePicker.platform.pickFiles` accessor no longer exists.
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const [
+          'm4a', 'mp3', 'wav', 'aac', 'aiff', 'caf', 'flac',
+          'ogg', 'opus', 'amr', 'mp4', 'mov', 'webm',
+        ],
+      );
+      // `.single` would throw when the platform returns an empty list, which it
+      // does on Android if copying the picked file into cache failed.
+      path = picked?.files.firstOrNull?.path;
+    } catch (e) {
+      // Tapping Import twice yields PlatformException('already_active'), and a
+      // failed URI resolution throws too. Unhandled, both are silent no-ops.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't open the file picker.")),
+        );
+      }
+      return;
+    }
+    if (path == null || !mounted) return; // cancelled
+    // A mutable local captured by the route builder below is not promoted; bind
+    // the non-null value to a final so the closure sees a String, not a String?.
+    final source = path;
+
+    try {
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => ImportScreen(
+            repository: widget.repository,
+            sourcePath: source,
+          ),
+        ),
+      );
+      if (saved == true) _load(); // same refresh the record flow triggers
+    } finally {
+      // The picker handed us a full-size *copy* in cache (Android
+      // <cacheDir>/file_picker/<millis>/, iOS NSTemporaryDirectory) — a 1.5 GB
+      // Zoom .mp4 costs 1.5 GB there, and re-importing copies it again. Only
+      // safe once the import is done reading it.
+      await FilePicker.clearTemporaryFiles();
+    }
   }
 
   Future<void> _open(Meeting m) async {
@@ -187,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _Header(themeMode: widget.themeMode),
+            _Header(themeMode: widget.themeMode, onImport: _import),
             _SearchField(onChanged: (v) => setState(() => _query = v)),
             if (!_manager.allReady)
               _DownloadBanner(
@@ -248,8 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.themeMode});
+  const _Header({required this.themeMode, required this.onImport});
   final ValueNotifier<ThemeMode> themeMode;
+  final VoidCallback onImport;
 
   @override
   Widget build(BuildContext context) {
@@ -272,6 +336,11 @@ class _Header extends StatelessWidget {
                   color: scheme.primary,
                   fontWeight: FontWeight.w600,
                   fontSize: 13)),
+          IconButton(
+            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: 'Import',
+            onPressed: onImport,
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context).push(

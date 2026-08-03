@@ -12,9 +12,22 @@ dependencies:
   flutter:
     sdk: flutter
   fllama:
+    # Our fork, not upstream main, because upstream builds
+    # llama.cpp for iOS with GGML_METAL_EMBED_LIBRARY=ON — that embeds ggml's
+    # Metal *source* and compiles it on-device on first inference, which takes
+    # minutes on a real iPhone and never completed in >3 min on an iPhone 17.
+    # The fork disables Metal on iOS (CPU inference); macOS is untouched.
+    # See the fork's commit for the full diagnosis and how to re-enable GPU.
+    #
+    # `ref` is the exact commit SHA of that branch's tip, not the branch name: a
+    # branch on a personal fork is mutable, so a force-push or a delete would
+    # silently change or break resolution for every checkout and CI run, and any
+    # `pub upgrade` would re-float it. Move this only deliberately — bump it to a
+    # new SHA (or drop the fork entirely) once the iOS Metal fix lands upstream
+    # or the fork carries an immutable tag.
     git:
-      url: https://github.com/Telosnex/fllama.git
-      ref: main
+      url: https://github.com/alilibx/fllama.git
+      ref: ac6f80bdf27aa887d0d8c61c220f0e0b27da3b84
 
 dev_dependencies:
   flutter_test:

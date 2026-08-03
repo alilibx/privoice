@@ -25,6 +25,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  audio_decoder:
+    dependency: transitive
+    description:
+      name: audio_decoder
+      sha256: "116d71853a934ede4d2afe31a1dabfb9fe5bb50efe3df4d798dc546cf6604c9f"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.8.1"
   background_downloader:
     dependency: transitive
     description:
@@ -177,6 +185,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.1"
+  file_picker:
+    dependency: transitive
+    description:
+      name: file_picker
+      sha256: f13a03000d942e476bc1ff0a736d2e9de711d2f89a95cd4c1d88f861c3348387
+      url: "https://pub.dev"
+    source: hosted
+    version: "11.0.2"
   fixnum:
     dependency: transitive
     description:
@@ -189,9 +205,9 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: main
-      resolved-ref: "3b1351a957920bf2a0df3709cce1e3a7195c479e"
-      url: "https://github.com/Telosnex/fllama.git"
+      ref: ac6f80bdf27aa887d0d8c61c220f0e0b27da3b84
+      resolved-ref: ac6f80bdf27aa887d0d8c61c220f0e0b27da3b84
+      url: "https://github.com/alilibx/fllama.git"
     source: git
     version: "0.0.1"
   flutter:
@@ -220,6 +236,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.7+1"
+  flutter_plugin_android_lifecycle:
+    dependency: transitive
+    description:
+      name: flutter_plugin_android_lifecycle
+      sha256: "3854fe5e3bff0b113c658f260b90c95dea17c92db0f2addeac2e343dd9969785"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.35"
   flutter_test:
     dependency: transitive
     description: flutter

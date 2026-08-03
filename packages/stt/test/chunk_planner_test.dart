@@ -1,0 +1,216 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:privoice_stt/privoice_stt.dart';
+
+const sr = 16000;
+const target = ChunkPlanner.targetChunkSeconds * sr;
+
+const frameSamples = ChunkPlanner.rmsFrameMs * sr ~/ 1000;
+const minChunk = ChunkPlanner.minChunkSeconds * sr;
+
+/// RMS that is loud everywhere — no natural cut point.
+Future<double> uniform(int start, int frame) async => 0.5;
+
+/// Asserts the properties every plan must have, at any file length: chunks
+/// start at 0, end at [total], are contiguous with no gap or overlap, are all
+/// positive-length, and sum to exactly [total].
+void expectPartitions(List<Chunk> chunks, int total) {
+  expect(chunks.first.startSample, 0);
+  expect(chunks.last.endSample, total);
+  var covered = 0;
+  for (var i = 0; i < chunks.length; i++) {
+    expect(chunks[i].sampleCount, greaterThan(0));
+    if (i > 0) {
+      expect(chunks[i].startSample, chunks[i - 1].endSample);
+    }
+    covered += chunks[i].sampleCount;
+  }
+  expect(covered, total, reason: 'chunks must sum to exactly $total samples');
+}
+
+/// Asserts no chunk is too short to recognise anything. Only the final chunk
+/// can degenerate, but the property is asserted over all of them.
+void expectNoDegenerateChunk(List<Chunk> chunks, int total) {
+  if (total >= minChunk) {
+    for (final c in chunks) {
+      expect(c.sampleCount, greaterThanOrEqualTo(minChunk),
+          reason: 'chunk at ${c.startSample} is ${c.sampleCount} samples, '
+              'below the $minChunk-sample floor; plan was '
+              '${chunks.map((c) => c.sampleCount).toList()}');
+    }
+  }
+}
+
+/// Wraps [rmsAt] so the test fails if the planner would ever ask [WavReader]
+/// for a window past the end of the file.
+Future<double> Function(int, int) bounded(
+  int total,
+  Future<double> Function(int, int) inner,
+) =>
+    (start, frameSamples) async {
+      expect(start, greaterThanOrEqualTo(0));
+      expect(start + frameSamples, lessThanOrEqualTo(total),
+          reason: 'rmsAt($start, $frameSamples) reads past $total samples');
+      return inner(start, frameSamples);
+    };
+
+void main() {
+  group('ChunkPlanner.plan', () {
+    test('a file shorter than one target chunk is a single chunk', () async {
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: 30 * sr, sampleRate: sr, rmsAt: uniform);
+      expect(chunks, hasLength(1));
+      expect(chunks.single.startSample, 0);
+      expect(chunks.single.sampleCount, 30 * sr);
+    });
+
+    test('exactly one target chunk stays a single chunk', () async {
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: target, sampleRate: sr, rmsAt: uniform);
+      expect(chunks, hasLength(1));
+    });
+
+    test('empty audio yields no chunks', () async {
+      expect(
+          await ChunkPlanner.plan(
+              sampleCount: 0, sampleRate: sr, rmsAt: uniform),
+          isEmpty);
+    });
+
+    test('chunks partition the audio exactly', () async {
+      final total = (target * 3.4).round();
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: total, sampleRate: sr, rmsAt: uniform);
+
+      expect(chunks.first.startSample, 0);
+      expect(chunks.last.endSample, total);
+      var covered = 0;
+      for (var i = 0; i < chunks.length; i++) {
+        expect(chunks[i].sampleCount, greaterThan(0));
+        if (i > 0) {
+          // contiguous, no gap and no overlap
+          expect(chunks[i].startSample, chunks[i - 1].endSample);
+        }
+        covered += chunks[i].sampleCount;
+      }
+      expect(covered, total);
+    });
+
+    test('an exact multiple produces no zero-length final chunk', () async {
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: target * 2, sampleRate: sr, rmsAt: uniform);
+      expect(chunks, hasLength(2));
+      for (final c in chunks) {
+        expect(c.sampleCount, greaterThan(0));
+      }
+    });
+
+    test('cuts inside a silent gap rather than at the raw target', () async {
+      // Silence from target+2s to target+4s. The planner should move the
+      // boundary into it instead of cutting at exactly `target`.
+      const gapStart = target + 2 * sr;
+      const gapEnd = target + 4 * sr;
+      Future<double> loudWithGap(int start, int frame) async =>
+          (start >= gapStart && start < gapEnd) ? 0.0 : 0.8;
+
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: target * 2, sampleRate: sr, rmsAt: loudWithGap);
+
+      expect(chunks.length, greaterThanOrEqualTo(2));
+      final boundary = chunks[0].endSample;
+      expect(boundary, greaterThanOrEqualTo(gapStart));
+      expect(boundary, lessThan(gapEnd));
+    });
+
+    test('with no silence, the boundary stays at the target', () async {
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: target * 2, sampleRate: sr, rmsAt: uniform);
+      // Uniform RMS: the first candidate wins, which is the earliest offset in
+      // the search window, so the boundary must land within the snap window.
+      final boundary = chunks[0].endSample;
+      expect((boundary - target).abs(),
+          lessThanOrEqualTo(ChunkPlanner.snapWindowSeconds * sr));
+    });
+
+    test('boundaries never fall outside the audio', () async {
+      final total = target + 3 * sr; // second chunk shorter than the window
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: total, sampleRate: sr, rmsAt: uniform);
+      for (final c in chunks) {
+        expect(c.startSample, greaterThanOrEqualTo(0));
+        expect(c.endSample, lessThanOrEqualTo(total));
+      }
+      expect(chunks.last.endSample, total);
+    });
+
+    test('with no silence, the boundary lands exactly on the target',
+        () async {
+      // Uniform RMS: every candidate in the scan window ties, so the
+      // tie-break must fall back to proximity to the raw target offset —
+      // the boundary should land exactly on `target`, not merely somewhere
+      // within the snap window either side of it.
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: target * 2, sampleRate: sr, rmsAt: uniform);
+      expect(chunks[0].endSample, target);
+    });
+
+    // The RMS scan is clamped to `sampleCount - frame` so it never reads past
+    // the end of the file. Without a floor on the final chunk, that clamp lets
+    // the last boundary land one 20 ms frame before EOF, and the resulting
+    // 320-sample chunk is fed to the recognizer — zero feature frames, so at
+    // best a wasted decode and at worst a native throw that discards the whole
+    // transcription.
+    test('one sample past the target does not spawn a 20 ms final chunk',
+        () async {
+      const total = target + 1;
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: total, sampleRate: sr, rmsAt: bounded(total, uniform));
+
+      expectPartitions(chunks, total);
+      expectNoDegenerateChunk(chunks, total);
+    });
+
+    test('the quietest frame sitting at EOF does not spawn a tiny final chunk',
+        () async {
+      const total = target + 5 * sr;
+      // Silence in the very last frame — the most attractive cut point the
+      // clamped scan can offer is exactly `total - frameSamples`.
+      Future<double> quietestAtEof(int start, int frame) async =>
+          start >= total - frameSamples ? 0.0 : 0.8;
+
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: total,
+          sampleRate: sr,
+          rmsAt: bounded(total, quietestAtEof));
+
+      expectPartitions(chunks, total);
+      expectNoDegenerateChunk(chunks, total);
+    });
+
+    test('a 15 minute file with a dip at every target ends cleanly', () async {
+      const total = target * 3;
+      // A single quiet sample just before each target boundary, so the chosen
+      // cut drifts one frame earlier each time and the leftover tail is one
+      // frame long.
+      const dips = <int>[target - 1, 2 * target - 1];
+      Future<double> dipPerTarget(int start, int frame) async =>
+          dips.any((d) => d >= start && d < start + frame) ? 0.0 : 0.8;
+
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: total,
+          sampleRate: sr,
+          rmsAt: bounded(total, dipPerTarget));
+
+      expectPartitions(chunks, total);
+      expectNoDegenerateChunk(chunks, total);
+    });
+
+    test('a file shorter than the minimum chunk is still one whole chunk',
+        () async {
+      const total = 300 * sr ~/ 1000; // 300 ms, below the floor
+      final chunks = await ChunkPlanner.plan(
+          sampleCount: total, sampleRate: sr, rmsAt: bounded(total, uniform));
+      expect(chunks, hasLength(1));
+      expectPartitions(chunks, total);
+    });
+  });
+}

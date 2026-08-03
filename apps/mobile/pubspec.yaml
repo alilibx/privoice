@@ -28,6 +28,7 @@ dependencies:
   share_plus: ^10.1.2
   wakelock_plus: ^1.2.8
   background_downloader: ^9.5.5
+  file_picker: ^11.0.2
 
 dev_dependencies:
   flutter_test:
