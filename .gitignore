@@ -35,3 +35,10 @@ key.properties
 firebase-debug.log
 pglite-debug.log
 *-debug.log
+
+# Claude Code local config. settings.local.json is machine-specific (per-machine
+# permission grants); launch.json describes this checkout's dev-server ports.
+# Neither belongs in history — but keep .claude/ itself unignored so a shared
+# settings.json or skills/ can be committed deliberately later.
+.claude/settings.local.json
+.claude/launch.json
